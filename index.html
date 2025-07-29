@@ -109,15 +109,53 @@
         .icon-btn svg { width: 32px; height: 32px; stroke: var(--highlight-color); }
         .icon-btn:hover { border-color: var(--highlight-color); background-color: var(--primary-color); }
 
-        #level-list, #lesson-list { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
-        .level-card, .lesson-card {
-            background-color: var(--tile-bg); border: 2px solid var(--tile-border);
-            border-radius: 15px; padding: 30px 50px; font-size: 2rem;
-            font-family: var(--font-family-en); font-weight: 700; cursor: pointer;
+        /* --- STYLES FOR LEVEL AND LESSON LISTS (MODIFIED) --- */
+        #level-list, #lesson-list {
+            display: flex;
+            gap: 15px; /* Reduced gap for tighter packing */
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 10px;
+        }
+
+        .level-card {
+            background-color: var(--tile-bg);
+            border: 2px solid var(--tile-border);
+            border-radius: 15px;
+            padding: 20px 40px; /* Reduced padding */
+            font-size: 1.5rem; /* Reduced font size */
+            font-family: var(--font-family-ar);
+            font-weight: 700;
+            cursor: pointer;
             transition: transform 0.2s, border-color 0.3s;
         }
-        .level-card { font-family: var(--font-family-ar); }
-        .level-card:hover, .lesson-card:hover { transform: translateY(-5px); border-color: var(--highlight-color); }
+
+        .lesson-card {
+            background-color: var(--tile-bg);
+            border: 1px solid var(--tile-border);
+            border-radius: 10px;
+            padding: 10px 18px; /* Reduced padding for smaller buttons */
+            font-size: 1rem; /* Reduced font size for lesson words */
+            font-family: var(--font-family-en);
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.3s, background-color 0.2s;
+            text-align: center;
+            flex-basis: 120px; /* Set a base width for each card */
+            flex-grow: 1;
+            max-width: 180px; /* Set a max width to prevent them from becoming too large */
+        }
+
+        .level-card:hover, .lesson-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--highlight-color);
+        }
+        
+        .lesson-card:hover {
+            background-color: var(--primary-color); /* More subtle hover effect */
+            transform: translateY(-3px);
+        }
+        /* --- END OF MODIFIED STYLES --- */
 
         .list-container {
             width: 100%; max-width: 700px; height: 65vh; overflow-y: auto;
@@ -191,9 +229,14 @@
         #pronunciation-container { width: 90%; border-top: 1px solid var(--tile-border); padding-top: 10px; }
         .pronunciation-text { font-size: 1rem; color: #A0AEC0; margin-top: 5px; font-family: var(--font-family-en); direction: ltr; }
         #practice-pronunciation-ar { font-family: var(--font-family-ar); direction: rtl; }
-        #practice-controls { display: flex; align-items: center; margin-top: 20px; }
-        #practice-counter { font-size: 1.5rem; color: var(--highlight-color); min-width: 150px; text-align: left; font-family: var(--font-family-en); }
-        
+        #practice-controls { display: flex; align-items: center; justify-content: space-between; width: 90%; max-width: 600px; margin-top: 20px; }
+        #practice-counter { font-size: 1.5rem; color: var(--highlight-color); text-align: left; font-family: var(--font-family-en); }
+        #speed-control-container { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+        #speed-slider { -webkit-appearance: none; appearance: none; width: 120px; height: 8px; background: var(--tile-border); border-radius: 5px; outline: none; transition: opacity 0.2s; }
+        #speed-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; background: var(--highlight-color); cursor: pointer; border-radius: 50%; }
+        #speed-slider::-moz-range-thumb { width: 20px; height: 20px; background: var(--highlight-color); cursor: pointer; border-radius: 50%; }
+        #speed-value { font-family: var(--font-family-en); font-weight: bold; color: var(--accent-color); min-width: 40px; }
+
         /* Writing Exercise Screen */
         #writing-exercise-input {
             background-color: var(--bg-color);
@@ -291,6 +334,11 @@
             </div>
             <div id="practice-controls">
                 <div id="practice-counter">0 / 0</div>
+                <div id="speed-control-container">
+                    <label for="speed-slider">السرعة</label>
+                    <input type="range" id="speed-slider" min="0.4" max="1.2" step="0.1" value="0.6">
+                    <span id="speed-value">0.6x</span>
+                </div>
             </div>
         </div>
 
@@ -317,29 +365,40 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- CONSTANTS & DATA ---
-            const STORAGE_KEY = 'english_srs_progress_v3';
-            // Corrected SRS schedule
+            const PROGRESS_STORAGE_KEY = 'english_srs_progress_v3';
+            const SETTINGS_STORAGE_KEY = 'english_app_settings_v1';
             const SRS_STAGES = [
-                // Stage 0: Learning phase
-                { name: "مرحلة التعلم", intervalDays: 1, reps: 6 }, // After learning, next review is in 1 day
-                // Stage 0: Learning phase
-                { name: "مراجعة اليوم التالي", intervalDays: 1, reps: 4 }, // After 1st review, next is in 3 days (total 4 days from start)
-                // Stage 2: Second review (Day 4)
-                { name: "مراجعة بعد 3 أيام", intervalDays: 7, reps: 3 }, // After 2nd review, next is in 7 days (total 11 days from start)
-                // Stage 3: Third review (Day 11)
-                { name: "مراجعة بعد 7 أيام", intervalDays: 19, reps: 2 }, // After 3rd review, next is in 19 days (total 30 days from start)
-                // Stage 4: Fourth review (Day 30)
-                { name: "مراجعة بعد 30 يومًا", intervalDays: 30, reps: 2 }, // After 4th review, next is in 30 days (mastery practice)
-                // Stage 5: Mastered
+                { name: "مرحلة التعلم", intervalDays: 1, reps: 6 },
+                { name: "مراجعة اليوم التالي", intervalDays: 1, reps: 4 },
+                { name: "مراجعة بعد 3 أيام", intervalDays: 7, reps: 3 },
+                { name: "مراجعة بعد 7 أيام", intervalDays: 19, reps: 2 },
+                { name: "مراجعة بعد 30 يومًا", intervalDays: 30, reps: 2 },
                 { name: "مرحلة الإتقان", intervalDays: Infinity, reps: 0 }
             ];
             const LESSON_LIBRARY = {
                 "المستوى الأول": {
+                    'add': {
+                        title: "add",
+                        sentences: [
+                            { id: "add_01", en: "I add sugar to my tea every morning.", ar: "أضيف السكر إلى الشاي كل صباح.", context: "المضارع البسيط", highlight: "add", tip_ar: "الفعل 'add' هنا في زمن المضارع البسيط لأنه يعبر عن عادة متكررة. لا نضيف 's' للفعل مع الضمير 'I'.", pronunciation_en: "/aɪ æd ˈʃʊɡər tə maɪ tiː ˈɛvri ˈmɔːrnɪŋ/", pronunciation_ar: "آي آد شوجر تو ماي تي إفري مورنينغ." },
+                            { id: "add_02", en: "She added salt to the soup.", ar: "هي أضافت الملح إلى الحساء.", context: "الماضي البسيط", highlight: "added", tip_ar: "الفعل 'added' هو التصريف الثاني (الماضي) من الفعل 'add'. نستخدمه للتعبير عن حدث وقع وانتهى في الماضي.", pronunciation_en: "/ʃi ˈædɪd sɔːlt tə ðə suːp/", pronunciation_ar: "شي آدِد سولت تو ذا سوب." },
+                            { id: "add_03", en: "He will add your name to the list.", ar: "هو سوف يضيف اسمك إلى القائمة.", context: "المستقبل", highlight: "will add", tip_ar: "صيغة المستقبل البسيط تتكون من 'will' متبوعًا بالفعل في صيغته الأساسية 'add'. تستخدم للتعبير عن حدث سيقع في المستقبل.", pronunciation_en: "/hi wɪl æd jər neɪm tə ðə lɪst/", pronunciation_ar: "هي ويل آد يور نيم تو ذا ليست." },
+                            { id: "add_04", en: "They are adding more chairs to the room.", ar: "هم يضيفون كراسي إضافية إلى الغرفة.", context: "المضارع المستمر", highlight: "are adding", tip_ar: "صيغة المضارع المستمر تتكون من 'am/is/are' + الفعل مضافًا له '-ing'. تستخدم لوصف حدث يقع الآن.", pronunciation_en: "/ðeɪ ər ˈædɪŋ mɔːr tʃɛərz tə ðə ruːm/", pronunciation_ar: "ذَي آر آدِينغ مور تشيرز تو ذا روم." },
+                            { id: "add_05", en: "I don’t add pepper to food.", ar: "أنا لا أضيف الفلفل إلى الطعام.", context: "صيغة النفي", highlight: "don’t add", tip_ar: "لنفي جملة في المضارع البسيط نستخدم 'do not' (أو 'don't') مع الضمائر I/you/we/they. الفعل 'add' يبقى في صيغته الأساسية.", pronunciation_en: "/aɪ doʊnt æd ˈpɛpər tə fuːd/", pronunciation_ar: "آي دونت آد بيبَر تو فود." },
+                            { id: "add_06", en: "Did you add the eggs?", ar: "هل أضفت البيض؟", context: "صيغة السؤال", highlight: "Did you add", tip_ar: "لتكوين سؤال في الماضي البسيط، نستخدم 'Did' في بداية الجملة. الفعل الرئيسي 'add' يعود إلى صيغته الأساسية.", pronunciation_en: "/dɪd ju æd ði ɛɡz/", pronunciation_ar: "ديد يو آد ذي إغز؟" },
+                            { id: "add_07", en: "Add some cheese, please.", ar: "أضف بعض الجبن، من فضلك.", context: "صيغة الأمر", highlight: "Add", tip_ar: "صيغة الأمر تبدأ بالفعل في صيغته الأساسية مباشرة. تستخدم لإعطاء تعليمات أو طلبات.", pronunciation_en: "/æd səm tʃiːz, pliːz/", pronunciation_ar: "آد صَم تشيز، بليز." },
+                            { id: "add_08", en: "Sugar was added to the cake.", ar: "أُضيف السكر إلى الكعكة.", context: "مبني للمجهول", highlight: "was added", tip_ar: "صيغة المبني للمجهول في الماضي تتكون من 'was/were' + التصريف الثالث للفعل. نستخدمها عندما يكون التركيز على الحدث وليس على الفاعل.", pronunciation_en: "/ˈʃʊɡər wəz ˈædɪd tə ðə keɪk/", pronunciation_ar: "شوجر واز آدِد تو ذا كيك." },
+                            { id: "add_09", en: "Let me add one more thing.", ar: "دعني أضف شيئًا آخر.", context: "عبارة شائعة", highlight: "add", tip_ar: "هذه عبارة شائعة تستخدم لإضافة معلومة أو نقطة جديدة في حديث. الفعل 'add' يأتي بعد 'Let me' في صيغته الأساسية.", pronunciation_en: "/lɛt mi æd wʌn mɔːr θɪŋ/", pronunciation_ar: "ليت مي آد وَن مور ثينغ." },
+                            { id: "add_10", en: "If you add 2 and 3, you get 5.", ar: "إذا جمعت 2 و 3، ستحصل على 5.", context: "سياق رياضي", highlight: "add", tip_ar: "في السياق الرياضي، 'add' تعني 'يجمع'. تستخدم في الجمل الشرطية (type 0) للتعبير عن حقائق علمية أو رياضية.", pronunciation_en: "/ɪf ju æd tuː ænd θriː, ju ɡɛt faɪv/", pronunciation_ar: "إف يو آد تو آند ثري، يو غيت فايف." },
+                            { id: "add_11", en: "Can you add to the discussion?", ar: "هل يمكنك أن تضيف إلى النقاش؟", context: "مع حرف جر", highlight: "add to", tip_ar: "الفعل 'add' غالبًا ما يتبعه حرف الجر 'to' لبيان الشيء الذي تتم الإضافة إليه. هنا يعني 'يساهم في' أو 'يشارك بـ'.", pronunciation_en: "/kæn ju æd tə ðə dɪˈskʌʃən/", pronunciation_ar: "كان يو آد تو ذا ديسكشن؟" },
+                            { id: "add_12", en: "His jokes really add to the fun.", ar: "نكاته تضفي متعة حقيقية.", context: "استخدام مجازي", highlight: "add to", tip_ar: "هنا 'add to' تستخدم بشكل مجازي لتعني 'يزيد من' أو 'يعزز'. الفاعل 'His jokes' هو جمع، لذلك الفعل 'add' لا يأخذ 's' في المضارع البسيط.", pronunciation_en: "/hɪz dʒoʊks ˈrɪəli æd tə ðə fʌn/", pronunciation_ar: "هِز جوكس ريلي آد تو ذا فَن." }
+                        ]
+                    },
                     'about': {
                         title: "about",
                         sentences: [
-                            { id: "ab_01", en: "I read a book about animals.", ar: "قرأت كتابًا عن الحيوانات.", context: "حرف جر: عن / بخصوص", highlight: "about", pronunciation_en: "/aɪ rɛd ə bʊk əˈbaʊt ˈænɪməlz/", pronunciation_ar: "آي ريد أَ بوك أَباوت آنيمالز.", tip_ar: "الفعل 'read' في الماضي يُنطق 'red' لكن يكتب بنفس الشكل. 'about' توضح موضوع الكتاب." },
-                            { id: "ab_02", en: "What about going to the park?", ar: "ماذا عن الذهاب إلى الحديقة؟", context: "مع السؤال: “What about…?”", highlight: "What about", pronunciation_en: "/wɒt əˈbaʊt ˈɡoʊɪŋ tə ðə pɑːrk?/", pronunciation_ar: "وات أَباوت غوينغ تو ذَا بارك؟", tip_ar: "التركيب 'What about...?' يستخدم لتقديم اقتراح. الفعل الذي يليه يأخذ '-ing'." },
+                            { id: "ab_01", en: "I read a book about animals.", ar: "قرأت كتابًا عن الحيوانات.", context: "حرف جر: عن / بخصوص", highlight: "about", tip_ar: "الفعل 'read' في الماضي يُنطق 'red' لكن يكتب بنفس الشكل. 'about' توضح موضوع الكتاب.", pronunciation_en: "/aɪ rɛd ə bʊk əˈbaʊt ˈænɪməlz/", pronunciation_ar: "آي ريد أَ بوك أَباوت آنيمالز." },
+                                                        { id: "ab_02", en: "What about going to the park?", ar: "ماذا عن الذهاب إلى الحديقة؟", context: "مع السؤال: “What about…?”", highlight: "What about", pronunciation_en: "/wɒt əˈbaʊt ˈɡoʊɪŋ tə ðə pɑːrk?/", pronunciation_ar: "وات أَباوت غوينغ تو ذَا بارك؟", tip_ar: "التركيب 'What about...?' يستخدم لتقديم اقتراح. الفعل الذي يليه يأخذ '-ing'." },
                             { id: "ab_03", en: "I have about $10.", ar: "لدي حوالي 10 دولارات.", context: "ظرف: تقريبًا / حوالي", highlight: "about", pronunciation_en: "/aɪ hæv əˈbaʊt tɛn ˈdɒlərz/", pronunciation_ar: "آي هاف أَباوت تين دولارز.", tip_ar: "هنا 'about' تعني 'تقريبًا' أو 'حوالي' وتأتي قبل الأرقام والكميات." },
                             { id: "ab_04", en: "The class starts at about 9 o’clock.", ar: "يبدأ الدرس حوالي الساعة 9.", context: "مع الوقت", highlight: "about", pronunciation_en: "/ðə klɑːs stɑːrts æt əˈbaʊt naɪn əˈklɒk/", pronunciation_ar: "ذَا كلاس ستارتس آت أَباوت ناين أُكلوك.", tip_ar: "الفعل 'starts' يأخذ 's' لأنه مع الفاعل المفرد 'The class' في زمن المضارع البسيط." },
                             { id: "ab_05", en: "He’s about 12 years old.", ar: "عمره حوالي 12 سنة.", context: "مع العمر / الطول / المسافة", highlight: "about", pronunciation_en: "/hiz əˈbaʊt twɛlv jɪərz oʊld/", pronunciation_ar: "هيز أَباوت تويلف ييرز أولد.", tip_ar: "'He's' هي اختصار لـ 'He is'. نستخدم 'about' مع العمر والقياسات لقول 'حوالي'." },
@@ -349,7 +408,346 @@
                             { id: "ab_09", en: "It’s about time!", ar: "حان الوقت!", context: "في التعبيرات اليومية", highlight: "about time", pronunciation_en: "/ɪts əˈbaʊt taɪm!/", pronunciation_ar: "إتس أَباوت تايم!", tip_ar: "التعبير 'It's about time!' يعني 'لقد حان الوقت أخيرًا' ويستخدم للتعبير عن نفاد الصبر." },
                             { id: "ab_10", en: "Don’t worry about it.", ar: "لا تقلق بشأن ذلك.", context: "في التعبيرات اليومية", highlight: "about it", pronunciation_en: "/doʊnt ˈwʌri əˈbaʊt ɪt/", pronunciation_ar: "دونت ووري أَباوت إت.", tip_ar: "'Don't' هي اختصار لـ 'Do not' وتستخدم للنفي في زمن المضارع البسيط." },
                         ]
-                    }
+                    },
+                                        'above': {
+    title: "above",
+    sentences: [
+        { id: "av_01", en: "The picture is above the bed.", ar: "الصورة فوق السرير.", context: "كمكان مادي (حرف جر)", highlight: "above", pronunciation_en: "/ðə ˈpɪktʃər ɪz əˈbʌv ðə bɛd./", pronunciation_ar: "ذَا بيكتشر إز أَبَاڤ ذَا بِد.", tip_ar: "كلمة 'above' تعني 'فوق' ولكن على عكس 'on'، لا يوجد تلامس بين الشيئين. الصورة معلقة على الحائط فوق السرير." },
+        { id: "av_02", en: "Look at the text above.", ar: "انظر إلى النص أعلاه.", context: "ظرف للموقع", highlight: "above", pronunciation_en: "/lʊk æt ðə tɛkst əˈbʌv./", pronunciation_ar: "لوك آت ذَا تِكست أَبَاڤ.", tip_ar: "هنا 'above' تعمل كظرف مكان للإشارة إلى شيء سبق ذكره في الأعلى على نفس الصفحة أو المستند." },
+        { id: "av_03", en: "The temperature is above 30°C today.", ar: "درجة الحرارة اليوم فوق 30 درجة مئوية.", context: "مقارنة بقيمة رقمية", highlight: "above", pronunciation_en: "/ðə ˈtɛmprətʃər ɪz əˈbʌv ˈθɜːrti dɪˈɡriːz təˈdeɪ./", pronunciation_ar: "ذَا تِمبريتشر إز أَبَاڤ ثيرتي ديجريز توداي.", tip_ar: "تُستخدم 'above' مع الأرقام (درجة حرارة، سعر، عمر) لتعني 'أكثر من' أو 'أعلى من'." },
+        { id: "av_04", en: "Please answer the question above.", ar: "من فضلك أجب عن السؤال أعلاه.", context: "في التعليم / الملاحظات", highlight: "above", pronunciation_en: "/pliːz ˈɑːnsər ðə ˈkwɛstʃən əˈbʌv./", pronunciation_ar: "بليز آنسر ذَا كويستشن أَبَاڤ.", tip_ar: "كما في المثال الثاني، 'above' هنا صفة تشير إلى موقع السؤال في النص (في الأعلى)." },
+        { id: "av_05", en: "The birds were flying above the trees.", ar: "كانت الطيور تحلق فوق الأشجار.", context: "في الارتفاعات / الأماكن", highlight: "above", pronunciation_en: "/ðə bɜːrdz wər ˈflaɪɪŋ əˈbʌv ðə triːz./", pronunciation_ar: "ذَا بيردز وير فلايينغ أَبَاڤ ذَا تريز.", tip_ar: "الفعل 'were flying' هو صيغة الماضي المستمر، ويصف فعلاً كان مستمراً في الماضي. 'above' تصف الموقع المكاني." },
+        { id: "av_06", en: "He got a score above 80%.", ar: "حصل على درجة فوق 80%.", context: "مع الدرجات / التقييم", highlight: "above", pronunciation_en: "/hi ɡɒt ə skɔːr əˈbʌv ˈeɪti pərˈsɛnt./", pronunciation_ar: "هي غوت أَ سكور أَبَاڤ إيتي بيرسنت.", tip_ar: "'got' هو التصريف الماضي للفعل 'get'. 'above' هنا تعني 'أعلى من' أو 'أكثر من' 80%." },
+        { id: "av_07", en: "Read the example above before doing the task.", ar: "اقرأ المثال أعلاه قبل القيام بالمهمة.", context: "في التسلسل أو الترتيب", highlight: "above", pronunciation_en: "/riːd ði ɪɡˈzɑːmpəl əˈbʌv bɪˈfɔːr ˈduːɪŋ ðə tɑːsk./", pronunciation_ar: "ريد ذي إغزامبل أَبَاڤ بيفور دوينغ ذَا تاسك.", tip_ar: "هذه الجملة هي جملة أمرية (imperative) تبدأ بالفعل في صيغته الأساسية 'Read'." },
+        { id: "av_08", en: "That is above my understanding.", ar: "هذا فوق مستوى فهمي.", context: "في التوصيف المجازي", highlight: "above", pronunciation_en: "/ðæt ɪz əˈbʌv maɪ ˌʌndərˈstændɪŋ./", pronunciation_ar: "ذَات إز أَبَاڤ ماي أندرستاندينغ.", tip_ar: "استخدام مجازي لكلمة 'above' ليعني شيئًا أصعب أو أعقد من قدرة الشخص على فهمه." },
+        { id: "av_09", en: "See above for more details.", ar: "انظر أعلاه لمزيد من التفاصيل.", context: "في الإعلانات / الإشعارات", highlight: "above", pronunciation_en: "/siː əˈbʌv fər mɔːr ˈdiːteɪlz./", pronunciation_ar: "سي أَبَاڤ فور مور ديتايلز.", tip_ar: "جملة أمرية شائعة جدًا في التعليمات والإرشادات المكتوبة، توجه القارئ للنظر إلى معلومات سابقة." },
+        { id: "av_10", en: "As mentioned above, the meeting is at 10.", ar: "كما ذكرنا أعلاه، الاجتماع في الساعة 10.", context: "في البريد الإلكتروني / الرسائل", highlight: "above", pronunciation_en: "/æz ˈmɛnʃənd əˈbʌv, ðə ˈmiːtɪŋ ɪz æt tɛn./", pronunciation_ar: "آز منشند أَبَاڤ، ذَا ميتينغ إز آت تين.", tip_ar: "'As mentioned above' عبارة ربط تستخدم لتجنب تكرار المعلومات التي ذكرت سابقًا في النص." },
+        { id: "av_11", en: "Honesty is above everything.", ar: "الصدق فوق كل شيء.", context: "في التعبيرات المعنوية", highlight: "above", pronunciation_en: "/ˈɒnəsti ɪz əˈbʌv ˈɛvriθɪŋ./", pronunciation_ar: "أونيستي إز أَبَاڤ إفريثينغ.", tip_ar: "هنا 'above' تستخدم للدلالة على الأهمية أو القيمة الأخلاقية، أي أن الصدق أهم من أي شيء آخر." },
+        { id: "av_12", en: "The shelf above the sink is broken.", ar: "الرف الذي فوق الحوض مكسور.", context: "في الاتجاهات", highlight: "above", pronunciation_en: "/ðə ʃɛlf əˈbʌv ðə sɪŋk ɪz ˈbroʊkən./", pronunciation_ar: "ذَا شيلف أَبَاڤ ذَا سينك إز بروكن.", tip_ar: "'broken' هي التصريف الثالث للفعل 'break'. تُستخدم هنا كصفة بمعنى 'مكسور'." }
+    ]
+    },
+    'accident': {
+            title: "accident",
+            sentences: [
+                { id: "ac_01", en: "He had an accident on his way to work.", ar: "تعرض لحادث في طريقه إلى العمل.", context: "جملة بسيطة مثبتة", highlight: "an accident", pronunciation_en: "/hi hæd ən ˈæksɪdənt ɒn hɪz weɪ tə wɜːrk/", pronunciation_ar: "هي هاد آن آكسيدينت أون هيز واي تو وورك.", tip_ar: "الفعل 'had' هو الماضي من 'have'. نستخدم 'an' قبل 'accident' لأنها تبدأ بصوت حرف علة." },
+                { id: "ac_02", en: "She was in an accident yesterday.", ar: "لقد كانت في حادث بالأمس.", context: "في الماضي البسيط", highlight: "an accident", pronunciation_en: "/ʃi wəz ɪn ən ˈæksɪdənt ˈjɛstədeɪ/", pronunciation_ar: "شي ووز إن آن آكسيدينت يِستِرداي.", tip_ar: "'was' هو فعل الكينونة 'be' في الماضي للمفرد. كلمة 'yesterday' تدل على أن الحدث وقع في الماضي." },
+                { id: "ac_03", en: "They had a car accident.", ar: "لقد تعرضوا لحادث سيارة.", context: "مع الفعل “have”", highlight: "had a car accident", pronunciation_en: "/ðeɪ hæd ə kɑːr ˈæksɪdənt/", pronunciation_ar: "ذاي هاد أَ كار آكسيدينت.", tip_ar: "التعبير 'have an accident' شائع جداً ويعني 'يتعرض لحادث'." },
+                { id: "ac_04", en: "Did you have an accident?", ar: "هل تعرضت لحادث؟", context: "في السؤال", highlight: "have an accident", pronunciation_en: "/dɪd ju hæv ən ˈæksɪdənt?/", pronunciation_ar: "ديد يو هاف آن آكسيدينت؟", tip_ar: "في السؤال في زمن الماضي البسيط، نستخدم 'Did' ويعود الفعل الرئيسي 'have' إلى مصدره." },
+                { id: "ac_05", en: "I didn’t have any accidents.", ar: "لم أتعرض لأي حوادث.", context: "في النفي", highlight: "didn’t have any accidents", pronunciation_en: "/aɪ ˈdɪdnt hæv ˈɛni ˈæksɪdənts/", pronunciation_ar: "آي ديدنت هاف إني آكسيدينتس.", tip_ar: "للنفي في الماضي البسيط نستخدم 'didn’t' + مصدر الفعل. نستخدم 'any' مع النفي والأسماء المعدودة في صيغة الجمع." },
+                { id: "ac_06", en: "There was a car accident on the highway.", ar: "وقع حادث سيارة على الطريق السريع.", context: "حادث سيارة تحديدًا", highlight: "a car accident", pronunciation_en: "/ðər wəz ə kɑːr ˈæksɪdənt ɒn ðə ˈhaɪweɪ/", pronunciation_ar: "ذير ووز أَ كار آكسيدينت أون ذَا هايواي.", tip_ar: "نستخدم 'There was' للحديث عن وجود شيء ما في الماضي." },
+                { id: "ac_07", en: "It was a terrible accident.", ar: "لقد كان حادثاً مروعاً.", context: "مع أدوات التحديد", highlight: "a terrible accident", pronunciation_en: "/ɪt wəz ə ˈtɛrəbl ˈæksɪdənt/", pronunciation_ar: "إت ووز أَ تيريبول آكسيدينت.", tip_ar: "الصفة 'terrible' تأتي قبل الاسم 'accident' لوصفه. 'a' أداة تنكير للاسم المفرد." },
+                { id: "ac_08", en: "It was a serious accident.", ar: "لقد كان حادثاً خطيراً.", context: "مع الصفات", highlight: "a serious accident", pronunciation_en: "/ɪt wəz ə ˈsɪəriəs ˈæksɪdənt/", pronunciation_ar: "إت ووز أَ سيرياس آكسيدينت.", tip_ar: "يمكن استخدام صفات مختلفة مثل 'serious' (خطير)، 'small' (بسيط)، أو 'traffic' (مروري) لوصف الحادث." },
+                { id: "ac_09", en: "It was just an accident.", ar: "لقد كان مجرد حادث.", context: "كتعبير شائع", highlight: "just an accident", pronunciation_en: "/ɪt wəz dʒəst ən ˈæksɪdənt/", pronunciation_ar: "إت ووز جاست آن آكسيدينت.", tip_ar: "تستخدم هذه العبارة لتهدئة الموقف والتأكيد على أن ما حدث لم يكن مقصودًا." },
+                { id: "ac_10", en: "The rain caused the accident.", ar: "تسبب المطر في الحادث.", context: "مع فعل “cause”", highlight: "caused the accident", pronunciation_en: "/ðə reɪn kɔːzd ðə ˈæksɪdənt/", pronunciation_ar: "ذَا راين كوزد ذَا آكسيدينت.", tip_ar: "الفعل 'cause' يعني 'يُسبب'. في الماضي البسيط، نضيف '-d' ليصبح 'caused'." },
+                { id: "ac_11", en: "The child had a small accident in the kitchen.", ar: "تعرض الطفل لحادث بسيط في المطبخ.", context: "في المدرسة / البيت", highlight: "a small accident", pronunciation_en: "/ðə tʃaɪld hæd ə smɔːl ˈæksɪdənt ɪn ðə ˈkɪtʃɪn/", pronunciation_ar: "ذَا تشايلد هاد أَ سمول آكسيدينت إن ذَا كيتشين.", tip_ar: "كلمة 'accident' لا تقتصر على حوادث السير، بل يمكن أن تشير إلى أي حدث غير متوقع في أي مكان." },
+                { id: "ac_12", en: "I broke the glass by accident.", ar: "كسرت الكأس عن طريق الخطأ.", context: "مع “by accident” (تعبير ثابت)", highlight: "by accident", pronunciation_en: "/aɪ broʊk ðə ɡlɑːs baɪ ˈæksɪdənt/", pronunciation_ar: "آي بروك ذَا غلاس باي آكسيدينت.", tip_ar: "التعبير 'by accident' يعني 'بدون قصد' أو 'عن طريق الخطأ'، وهو ظرف يصف كيفية وقوع الفعل." },
+                { id: "ac_13", en: "In case of an accident, call 999.", ar: "في حالة وقوع حادث، اتصل بالرقم 999.", context: "في التعليمات / الإجراءات", highlight: "In case of an accident", pronunciation_en: "/ɪn keɪs əv ən ˈæksɪdənt, kɔːl naɪn naɪn naɪn/", pronunciation_ar: "إن كيس أوف آن آكسيدينت، كول 999.", tip_ar: "تعبير 'In case of' يستخدم في السياقات الرسمية والتعليمات ويعني 'في حالة'." },
+                { id: "ac_14", en: "Sorry I’m late — there was an accident.", ar: "آسف على التأخير — لقد وقع حادث.", context: "في الكتابة / الرسائل", highlight: "an accident", pronunciation_en: "/ˈsɒri aɪm leɪt — ðər wəz ən ˈæksɪdənt/", pronunciation_ar: "سوري آيم ليت — ذير ووز آن آكسيدينت.", tip_ar: "هذا سبب شائع ومقبول للتأخير في المحادثات اليومية أو الرسائل غير الرسمية." },
+                { id: "ac_15", en: "There were many accidents during the storm.", ar: "كانت هناك حوادث كثيرة أثناء العاصفة.", context: "في صيغة الجمع", highlight: "many accidents", pronunciation_en: "/ðər wər ˈmɛni ˈæksɪdənts ˈdjʊərɪŋ ðə stɔːrm/", pronunciation_ar: "ذير وير ميني آكسيدينتس ديورينغ ذَا ستورم.", tip_ar: "الجمع من 'accident' هو 'accidents' بإضافة 's'. نستخدم 'There were' للجمع في الماضي." }
+            ]
+        },
+        'a / an': {
+        title: "a / an",
+        sentences: [
+            { id: "aa_01", en: "I have a book.", ar: "لدي كتاب.", context: "الاستخدام الأساسي (مع صوت ساكن)", highlight: "a", pronunciation_en: "/aɪ hæv ə bʊk/", pronunciation_ar: "آي هاف أَ بوك.", tip_ar: "نستخدم 'a' قبل الأسماء المفردة المعدودة التي تبدأ بصوت حرف ساكن (مثل صوت /b/ في 'book')." },
+            { id: "aa_02", en: "She ate an apple.", ar: "لقد أكلت تفاحة.", context: "الاستخدام الأساسي (مع صوت علة)", highlight: "an", pronunciation_en: "/ʃi eɪt ən ˈæpl/", pronunciation_ar: "شي إيت آن آبِل.", tip_ar: "نستخدم 'an' قبل الأسماء المفردة المعدودة التي تبدأ بصوت حرف علة (مثل صوت /æ/ في 'apple')." },
+            { id: "aa_03", en: "Do you have a pen?", ar: "هل لديك قلم؟", context: "في السؤال", highlight: "a", pronunciation_en: "/du ju hæv ə pɛn?/", pronunciation_ar: "دو يو هاف أَ بِن؟", tip_ar: "تُستخدم أدوات التنكير 'a/an' في الأسئلة بنفس الطريقة التي تُستخدم بها في الجمل المثبتة للإشارة إلى اسم مفرد غير محدد." },
+            { id: "aa_04", en: "I don’t have a car.", ar: "أنا لا أملك سيارة.", context: "في النفي", highlight: "a", pronunciation_en: "/aɪ doʊnt hæv ə kɑːr/", pronunciation_ar: "آي دونت هاف أَ كار.", tip_ar: "تستخدم 'a/an' أيضاً في الجمل المنفية مع الأسماء المفردة. 'don't' هي اختصار لـ 'do not'." },
+            { id: "aa_05", en: "He is a good teacher.", ar: "إنه مدرس جيد.", context: "مع الصفات", highlight: "a", pronunciation_en: "/hi ɪz ə ɡʊd ˈtiːtʃər/", pronunciation_ar: "هي إز أَ غود تيتشر.", tip_ar: "عندما يسبق الاسم صفة، توضع الأداة (a/an) قبل الصفة، ويعتمد اختيارها على صوت بداية الصفة." },
+            { id: "aa_06", en: "It's an interesting story.", ar: "إنها قصة مثيرة للاهتمام.", context: "مع الصفات", highlight: "an", pronunciation_en: "/ɪts ən ˈɪntrəstɪŋ ˈstɔːri/", pronunciation_ar: "إتس آن إنتريستينغ ستوري.", tip_ar: "هنا نستخدم 'an' لأن الصفة 'interesting' تبدأ بصوت علة." },
+            { id: "aa_07", en: "I’ll be back in a minute.", ar: "سأعود خلال دقيقة.", context: "قبل الأرقام والزمن", highlight: "a", pronunciation_en: "/aɪl bi bæk ɪn ə ˈmɪnɪt/", pronunciation_ar: "آيل بي باك إن أَ مينيت.", tip_ar: "تستخدم 'a' بمعنى 'واحد' مع وحدات الزمن مثل 'a day', 'a week', 'a minute'." },
+            { id: "aa_08", en: "She is a doctor.", ar: "هي طبيبة.", context: "مع الوظائف", highlight: "a", pronunciation_en: "/ʃi ɪz ə ˈdɒktər/", pronunciation_ar: "شي إز أَ دوكتور.", tip_ar: "يجب دائمًا استخدام 'a' أو 'an' قبل ذكر الوظائف المفردة." },
+            { id: "aa_09", en: "He is an engineer.", ar: "هو مهندس.", context: "مع الوظائف", highlight: "an", pronunciation_en: "/hi ɪz ən ˌɛndʒɪˈnɪər/", pronunciation_ar: "هي إز آن إنجينير.", tip_ar: "نستخدم 'an' هنا لأن كلمة 'engineer' تبدأ بصوت علة." },
+            { id: "aa_10", en: "I need a lot of time.", ar: "أحتاج الكثير من الوقت.", context: "في التعبيرات الشائعة", highlight: "a lot of", pronunciation_en: "/aɪ niːd ə lɒt əv taɪm/", pronunciation_ar: "آي نيد أَ لوت أوف تايم.", tip_ar: "التعبير 'a lot of' هو تعبير شائع يعني 'الكثير من' ويأتي بعده اسم معدود أو غير معدود." },
+            { id: "aa_11", en: "That’s a bit strange.", ar: "هذا غريب بعض الشيء.", context: "في التعبيرات الشائعة", highlight: "a bit", pronunciation_en: "/ðæts ə bɪt streɪndʒ/", pronunciation_ar: "ذاتس أَ بِت ستراينج.", tip_ar: "'a bit' تعبير يعني 'قليلاً' أو 'بعض الشيء'، ويستخدم لتقليل حدة الصفة." },
+            { id: "aa_12", en: "He is a Muslim.", ar: "هو مسلم.", context: "قبل الجنسيات أو الأديان", highlight: "a", pronunciation_en: "/hi ɪz ə ˈmʊslɪm/", pronunciation_ar: "هي إز أَ مسلم.", tip_ar: "تستخدم 'a/an' للدلالة على هوية أو انتماء شخص ما لمجموعة (دينية، قومية، الخ)." },
+            { id: "aa_13", en: "She is an American.", ar: "هي أمريكية.", context: "قبل الجنسيات أو الأديان", highlight: "an", pronunciation_en: "/ʃi ɪz ən əˈmɛrɪkən/", pronunciation_ar: "شي إز آن أميريكان.", tip_ar: "كلمة 'American' تبدأ بصوت علة، لذلك نستخدم 'an'." },
+            { id: "aa_14", en: "Gas costs $2 a litre.", ar: "يكلف الغاز دولارين للتر الواحد.", context: "مع وحدات القياس", highlight: "a", pronunciation_en: "/ɡæs kɒsts tuː ˈdɒlərz ə ˈliːtər/", pronunciation_ar: "غاز كوستس تو دولارز أَ ليتر.", tip_ar: "في هذا السياق، 'a' تعني 'لكل' (per). وتستخدم مع وحدات القياس أو التكرار (e.g., twice a week)." },
+            { id: "aa_15", en: "Once upon a time, there was a king.", ar: "في قديم الزمان، كان هناك ملك.", context: "في القصص والسرد", highlight: "a", pronunciation_en: "/wʌns əˈpɒn ə taɪm, ðər wəz ə kɪŋ/", pronunciation_ar: "وانس أَبون أَ تايم، ذير ووز أَ كينغ.", tip_ar: "هذه هي الطريقة التقليدية لبدء القصص الخيالية، حيث يتم تقديم شخصيات غير معروفة لأول مرة باستخدام 'a'." },
+            { id: "aa_16", en: "She is an honest person.", ar: "إنها شخصية صادقة.", context: "كلمة تبدأ بحرف ساكن لكن تُنطق بصوت علة", highlight: "an", pronunciation_en: "/ʃi ɪz ən ˈɒnɪst ˈpɜːrsn/", pronunciation_ar: "شي إز آن أونيست بيرسون.", tip_ar: "العبرة بالصوت وليس الحرف. حرف 'h' في كلمة 'honest' صامت، لذا الكلمة تبدأ بصوت العلة /ɒ/، ونستخدم 'an'." },
+            { id: "aa_17", en: "He is a university student.", ar: "هو طالب جامعي.", context: "كلمة تبدأ بحرف علة لكنها تُنطق بصوت ساكن", highlight: "a", pronunciation_en: "/hi ɪz ə ˌjuːnɪˈvɜːrsəti ˈstjuːdənt/", pronunciation_ar: "هي إز أَ يونيفرسيتي ستيودنت.", tip_ar: "كلمة 'university' تبدأ بحرف 'u'، لكنها تُنطق بصوت الساكن /j/ (مثل أول حرف في 'yes'). لذلك، نستخدم 'a'." },
+            { id: "aa_18", en: "What a beautiful day!", ar: "يا له من يوم جميل!", context: "في التعجب (exclamations)", highlight: "a", pronunciation_en: "/wɒt ə ˈbjuːtɪfl deɪ!/", pronunciation_ar: "وات أَ بيوتيفول داي!", tip_ar: "نستخدم 'a/an' بعد 'What' وقبل الاسم المفرد المعدود في جمل التعجب." }
+        ]
+    },
+    'a few': {
+        title: "a few",
+        sentences: [
+            { id: "af_01", en: "I have a few friends.", ar: "لدي بعض الأصدقاء.", context: "الجملة المثبتة البسيطة", highlight: "a few", pronunciation_en: "/aɪ hæv ə fjuː frɛndz/", pronunciation_ar: "آي هاف أَ فيو فريندز.", tip_ar: "تُستخدم 'a few' للإشارة إلى عدد قليل ولكن كافٍ من الأشياء، وتحمل معنى إيجابياً. تأتي دائماً قبل اسم معدود في صيغة الجمع." },
+            { id: "af_02", en: "She bought a few apples.", ar: "اشترت بعض التفاحات.", context: "مع الأسماء المعدودة فقط", highlight: "a few", pronunciation_en: "/ʃi bɔːt ə fjuː ˈæplz/", pronunciation_ar: "شي بوت أَ فيو آبِلز.", tip_ar: "'a few' تستخدم فقط مع الأسماء التي يمكن عدها (countable nouns) مثل 'apples', 'books', 'days'. لا يمكن استخدامها مع أسماء مثل 'water' أو 'information'." },
+            { id: "af_03", en: "We met a few interesting people.", ar: "التقينا ببعض الأشخاص المثيرين للاهتمام.", context: "مع الصفات", highlight: "a few interesting", pronunciation_en: "/wi mɛt ə fjuː ˈɪntrəstɪŋ ˈpiːpl/", pronunciation_ar: "وي ميت أَ فيو إنتريستينغ بيبول.", tip_ar: "يأتي التركيب كالتالي: 'a few' + صفة + اسم معدود في صيغة الجمع." },
+            { id: "af_04", en: "Only a few came to the party.", ar: "فقط عدد قليل جاء إلى الحفلة.", context: "كضمير", highlight: "a few", pronunciation_en: "/ˈoʊnli ə fjuː keɪm tə ðə ˈpɑːrti/", pronunciation_ar: "أونلي أَ فيو كايم تو ذَا بارتي.", tip_ar: "هنا، 'a few' تعمل كضمير يحل محل الاسم المفهوم من السياق (مثلاً: a few people)." },
+            { id: "af_05", en: "Can you give me a few examples?", ar: "هل يمكنك أن تعطيني بعض الأمثلة؟", context: "في السؤال", highlight: "a few", pronunciation_en: "/kən ju ɡɪv mi ə fjuː ɪɡˈzæmplz?/", pronunciation_ar: "كان يو غيف مي أَ فيو إغزامبلز؟", tip_ar: "تُستخدم 'a few' بشكل شائع في الأسئلة لطلب عدد قليل من الأشياء." },
+            { id: "af_06", en: "I have a few books.", ar: "لدي بعض الكتب. (بمعنى إيجابي)", context: "مقارنة مع “few” (إيجابي)", highlight: "a few", pronunciation_en: "/aɪ hæv ə fjuː bʊks/", pronunciation_ar: "آي هاف أَ فيو بوكس.", tip_ar: "'a few' تعني 'عدد قليل لكنه كافٍ'. المعنى إيجابي، ويشير إلى وجود بعض الكتب." },
+            { id: "af_07", en: "I have few books.", ar: "لدي كتب قليلة. (بمعنى سلبي)", context: "مقارنة مع “few” (سلبي)", highlight: "few", pronunciation_en: "/aɪ hæv fjuː bʊks/", pronunciation_ar: "آي هاف فيو بوكس.", tip_ar: "'few' (بدون 'a') تعني 'عدد قليل جداً، أقل من المتوقع'. المعنى سلبي، ويشير إلى عدم وجود كتب كافية." },
+            { id: "af_08", en: "Only a few students passed the test.", ar: "فقط عدد قليل من الطلاب اجتازوا الاختبار.", context: "مع “only”", highlight: "Only a few", pronunciation_en: "/ˈoʊnli ə fjuː ˈstjuːdənts pɑːst ðə tɛst/", pronunciation_ar: "أونلي أَ فيو ستيودنتس باست ذَا تست.", tip_ar: "إضافة 'only' قبل 'a few' تؤكد على قلة العدد وتحدده." },
+            { id: "af_09", en: "We’ll stay here for a few days.", ar: "سنبقى هنا لبضعة أيام.", context: "مع الأفعال المستقبلية", highlight: "a few days", pronunciation_en: "/wiːl steɪ hɪər fər ə fjuː deɪz/", pronunciation_ar: "ويل ستاي هير فور أَ فيو دايز.", tip_ar: "تستخدم 'a few' مع فترات زمنية (days, weeks, hours) لوصف مدة قصيرة في المستقبل أو الماضي." },
+            { id: "af_10", en: "Let’s wait a few minutes.", ar: "دعنا ننتظر بضع دقائق.", context: "في عبارات وقتية", highlight: "a few minutes", pronunciation_en: "/lɛts weɪt ə fjuː ˈmɪnɪts/", pronunciation_ar: "ليتس وايت أَ فيو مينيتس.", tip_ar: "تعبير شائع لاقتراح الانتظار لفترة زمنية قصيرة." },
+            { id: "af_11", en: "Take a few cookies if you like.", ar: "خذ بعض الكعك إذا أردت.", context: "في جمل الأمر", highlight: "a few", pronunciation_en: "/teɪk ə fjuː ˈkʊkiz ɪf ju laɪk/", pronunciation_ar: "تايك أَ فيو كوكيز إف يو لايك.", tip_ar: "يمكن استخدام 'a few' بعد فعل الأمر لتقديم عرض أو إعطاء إذن بأخذ كمية صغيرة." },
+            { id: "af_12", en: "There are a few questions on the test.", ar: "توجد بعض الأسئلة في الاختبار.", context: "مع there is/are", highlight: "There are a few", pronunciation_en: "/ðər ɑːr ə fjuː ˈkwɛstʃənz ɒn ðə tɛst/", pronunciation_ar: "ذير آر أَ فيو كويستشنز أون ذَا تست.", tip_ar: "نستخدم 'There are' مع 'a few' لأن 'a few' تأتي مع اسم جمع." },
+            { id: "af_13", en: "We have only a few hours left.", ar: "لم يتبق لدينا سوى بضع ساعات.", context: "مع quantifiers", highlight: "only a few", pronunciation_en: "/wi hæv ˈoʊnli ə fjuː ˈaʊərz lɛft/", pronunciation_ar: "وي هاف أونلي أَ فيو آورز ليفت.", tip_ar: "يمكن أن تسبقها محددات أخرى مثل 'only' (فقط) أو 'quite' (تمامًا) لتعديل المعنى." },
+            { id: "af_14", en: "I invited a few cousins for dinner.", ar: "دعوت بعض أبناء العم على العشاء.", context: "في السياقات العائلية / اليومية", highlight: "a few", pronunciation_en: "/aɪ ɪnˈvaɪtɪd ə fjuː ˈkʌznz fər ˈdɪnər/", pronunciation_ar: "آي إنفايتيد أَ فيو كازنز فور دينر.", tip_ar: "تعبير طبيعي وشائع جداً في المواقف الاجتماعية لوصف عدد صغير من الناس." },
+            { id: "af_15", en: "I’ll explain it in a few words.", ar: "سأشرح ذلك في بضع كلمات.", context: "مع الكلمات الانتقالية", highlight: "in a few words", pronunciation_en: "/aɪl ɪkˈspleɪn ɪt ɪn ə fjuː wɜːrdz/", pronunciation_ar: "آيل إكسبلاين إت إن أَ فيو ووردز.", tip_ar: "تعبير 'in a few words' يعني 'باختصار' أو 'بإيجاز'." },
+            { id: "af_16", en: "He was tired, but he answered a few emails.", ar: "كان متعبًا، لكنه أجاب على بعض رسائل البريد الإلكتروني.", context: "مع أدوات الربط", highlight: "a few", pronunciation_en: "/hi wəz ˈtaɪərd, bət hi ˈɑːnsərd ə fjuː ˈiːmeɪlz/", pronunciation_ar: "هي ووز تايرد، بات هي آنسرد أَ فيو إيميلز.", tip_ar: "تستخدم 'a few' هنا في الجزء الثاني من الجملة المربوطة بـ 'but' لإظهار أنه قام بعمل محدود رغم التعب." }
+        ]
+    },
+    'able': {
+        title: "able / be able to",
+        sentences: [
+            { id: "bl_01", en: "I am able to swim.", ar: "أنا قادر على السباحة.", context: "مضارع بسيط", highlight: "am able to", pronunciation_en: "/aɪ æm ˈeɪbl tə swɪm/", pronunciation_ar: "آي آم إيبل تو سويم.", tip_ar: "التركيب 'be able to' يعني 'القدرة على فعل شيء'. في المضارع، نستخدم 'am', 'is', أو 'are' حسب الفاعل." },
+            { id: "bl_02", en: "She was able to finish her work.", ar: "لقد كانت قادرة على إنهاء عملها.", context: "ماضي بسيط", highlight: "was able to", pronunciation_en: "/ʃi wəz ˈeɪbl tə ˈfɪnɪʃ hər wɜːrk/", pronunciation_ar: "شي ووز إيبل تو فينيش هير وورك.", tip_ar: "في الماضي، نستخدم 'was' للفاعل المفرد و 'were' للفاعل الجمع. وتعني 'تمكن من' أو 'استطاع'." },
+            { id: "bl_03", en: "They will be able to visit us tomorrow.", ar: "سيكونون قادرين على زيارتنا غدًا.", context: "مستقبل بسيط", highlight: "will be able to", pronunciation_en: "/ðeɪ wɪl bi ˈeɪbl tə ˈvɪzɪt əs təˈmɒroʊ/", pronunciation_ar: "ذاي ويل بي إيبل تو فيزيت أس تومورو.", tip_ar: "للتعبير عن القدرة في المستقبل، نستخدم الصيغة الثابتة 'will be able to' مع جميع الضمائر." },
+            { id: "bl_04", en: "He is not able to come today.", ar: "هو غير قادر على المجيء اليوم.", context: "صيغة النفي (مضارع)", highlight: "is not able to", pronunciation_en: "/hi ɪz nɒt ˈeɪbl tə kʌm təˈdeɪ/", pronunciation_ar: "هي إز نوت إيبل تو كَم توداي.", tip_ar: "للنفي، نضع 'not' بعد فعل الكينونة (am, is, are). يمكن اختصارها إلى 'isn't' أو 'aren't'." },
+            { id: "bl_05", en: "Are you able to help me?", ar: "هل أنت قادر على مساعدتي؟", context: "صيغة السؤال (مضارع)", highlight: "Are you able to", pronunciation_en: "/ɑːr ju ˈeɪbl tə hɛlp mi?/", pronunciation_ar: "آر يو إيبل تو هيلب مي؟", tip_ar: "لصياغة سؤال، نضع فعل الكينونة (Am, Is, Are) في بداية الجملة." },
+            { id: "bl_06", en: "We weren’t able to find the place.", ar: "لم نكن قادرين على إيجاد المكان.", context: "صيغة النفي (ماضي)", highlight: "weren’t able to", pronunciation_en: "/wi wɜːrnt ˈeɪbl tə faɪnd ðə pleɪs/", pronunciation_ar: "وي ويرنت إيبل تو فايند ذَا بليس.", tip_ar: "'weren't' هي اختصار لـ 'were not'. نستخدمها للنفي في الماضي مع (you, we, they)." },
+            { id: "bl_07", en: "Was she able to solve the problem?", ar: "هل كانت قادرة على حل المشكلة؟", context: "صيغة السؤال (ماضي)", highlight: "Was she able to", pronunciation_en: "/wəz ʃi ˈeɪbl tə sɒlv ðə ˈprɒbləm?/", pronunciation_ar: "ووز شي إيبل تو سولف ذَا بروبليم؟", tip_ar: "للسؤال في الماضي، نبدأ بـ 'Was' أو 'Were' حسب الفاعل." },
+            { id: "bl_08", en: "He is able and confident.", ar: "هو قادر وواثق.", context: "مع الصفات", highlight: "able", pronunciation_en: "/hi ɪz ˈeɪbl ənd ˈkɒnfɪdənt/", pronunciation_ar: "هي إز إيبل آند كونفيدنت.", tip_ar: "هنا 'able' تُستخدم كصفة مباشرة ضمن قائمة من الصفات لوصف شخص ما." },
+            { id: "bl_09", en: "She was too tired to be able to walk.", ar: "كانت متعبة جدًا لدرجة أنها لم تكن قادرة على المشي.", context: "مع too...to", highlight: "to be able to", pronunciation_en: "/ʃi wəz tuː ˈtaɪərd tə bi ˈeɪbl tə wɔːk/", pronunciation_ar: "شي ووز تو تايرد تو بي إيبل تو ووك.", tip_ar: "هذا التركيب 'too...to...' يفيد معنى النفي، أي أنها لم تستطع المشي بسبب التعب." },
+            { id: "bl_10", en: "If I am able to travel, I will visit London.", ar: "إذا تمكنت من السفر، سأزور لندن.", context: "صيغة افتراضية (شرطية)", highlight: "am able to", pronunciation_en: "/ɪf aɪ æm ˈeɪbl tə ˈtrævl, aɪ wɪl ˈvɪzɪt ˈlʌndən/", pronunciation_ar: "إف آي آم إيبل تو ترافل، آي ويل فيزيت لندن.", tip_ar: "تستخدم 'be able to' في الجمل الشرطية (النوع الأول) للتعبير عن إمكانية حدوث شيء في المستقبل." },
+            { id: "bl_11", en: "Are you able to use this software?", ar: "هل أنت قادر على استخدام هذا البرنامج؟", context: "سياق عملي", highlight: "able to use", pronunciation_en: "/ɑːr ju ˈeɪbl tə juːz ðɪs ˈsɒftweər?/", pronunciation_ar: "آر يو إيبل تو يوز ذيس سوفتوير؟", tip_ar: "شائعة جدًا في سياقات العمل والمهارات التقنية للسؤال عن قدرة شخص على أداء مهمة معينة." },
+            { id: "bl_12", en: "Would you be able to send me the file?", ar: "هل يمكنك أن ترسل لي الملف؟", context: "في الطلب المهذب", highlight: "be able to send", pronunciation_en: "/wʊd ju bi ˈeɪbl tə sɛnd mi ðə faɪl?/", pronunciation_ar: "وود يو بي إيبل تو سيند مي ذَا فايل؟", tip_ar: "استخدام 'Would you be able to...?' هو طريقة مهذبة ورسمية جدًا لطلب شيء ما." },
+            { id: "bl_13", en: "I’m not able to speak Spanish, but he is.", ar: "أنا لست قادرًا على التحدث بالإسبانية، لكنه هو قادر.", context: "مقارنة شخصية", highlight: "not able to", pronunciation_en: "/aɪm nɒt ˈeɪbl tə spiːk ˈspænɪʃ, bət hi ɪz/", pronunciation_ar: "آيم نوت إيبل تو سبيك سبانيش، بات هي إز.", tip_ar: "تُستخدم للمقارنة بين قدرات شخصين مختلفين. لاحظ كيف تم اختصار 'he is able to' إلى 'he is' في نهاية الجملة." },
+            { id: "bl_14", en: "She’s going to be able to join later.", ar: "سوف تكون قادرة على الانضمام لاحقًا.", context: "مع be going to", highlight: "going to be able to", pronunciation_en: "/ʃiːz ˈɡoʊɪŋ tə bi ˈeɪbl tə dʒɔɪn ˈleɪtər/", pronunciation_ar: "شيز غوينغ تو بي إيبل تو جوين ليتر.", tip_ar: "هذا شكل مستقبلي آخر. 'be going to' + 'be able to' يستخدم للخطط والنوايا المستقبلية التي تتضمن قدرة." },
+            { id: "bl_15", en: "— Can you drive? — Yes, I’m able to drive.", ar: "— هل تستطيع القيادة؟ — نعم، أنا قادر على القيادة.", context: "في الحوار", highlight: "able to drive", pronunciation_en: "/kən ju draɪv? jɛs, aɪm ˈeɪbl tə draɪv/", pronunciation_ar: "كان يو درايف؟ يس، آيم إيبل تو درايف.", tip_ar: "يمكن استخدام 'be able to' كبديل لـ 'can' للتأكيد على القدرة أو في سياقات أكثر رسمية." }
+        ]
+    },
+    'across': {
+        title: "across",
+        sentences: [
+            { id: "acr_01", en: "The bank is across the street.", ar: "البنك يقع على الجانب الآخر من الشارع.", context: "كحرف جر مكاني", highlight: "across the street", pronunciation_en: "/ðə bæŋk ɪz əˈkrɒs ðə striːt/", pronunciation_ar: "ذَا بانك إز أَكروس ذَا ستريت.", tip_ar: "تستخدم 'across' هنا لتعني 'في الجهة المقابلة' لشيء ما مثل شارع، نهر، أو حقل." },
+            { id: "acr_02", en: "He walked across the bridge.", ar: "مشى عبر الجسر.", context: "مع أفعال الحركة", highlight: "walked across", pronunciation_en: "/hi wɔːkt əˈkrɒs ðə brɪdʒ/", pronunciation_ar: "هي ووكْت أَكروس ذَا بريدج.", tip_ar: "تأتي 'across' بعد أفعال الحركة مثل 'walk', 'run', 'swim', 'drive' لتصف عبور شيء من طرف إلى آخر." },
+            { id: "acr_03", en: "She runs across the park every morning.", ar: "هي تركض عبر الحديقة كل صباح.", context: "في الحاضر البسيط", highlight: "runs across", pronunciation_en: "/ʃi rʌnz əˈkrɒs ðə pɑːrk ˈɛvri ˈmɔːnɪŋ/", pronunciation_ar: "شي رانز أَكروس ذَا بارك إيفري مورنينغ.", tip_ar: "الفعل 'runs' يأخذ 's' لأنه مع الفاعل المفرد 'She' في زمن المضارع البسيط الذي يصف الروتين." },
+            { id: "acr_04", en: "We drove across the city.", ar: "قدنا السيارة عبر المدينة.", context: "في الماضي البسيط", highlight: "drove across", pronunciation_en: "/wi droʊv əˈkrɒs ðə ˈsɪti/", pronunciation_ar: "وي دروف أَكروس ذَا سيتي.", tip_ar: "'drove' هو التصريف الماضي للفعل غير المنتظم 'drive'." },
+            { id: "acr_05", en: "They will travel across the country.", ar: "سوف يسافرون عبر البلاد.", context: "في المستقبل", highlight: "travel across", pronunciation_en: "/ðeɪ wɪl ˈtrævl əˈkrɒs ðə ˈkʌntri/", pronunciation_ar: "ذاي ويل ترافل أَكروس ذَا كانتري.", tip_ar: "نستخدم 'will' + الفعل في المصدر للتعبير عن خطط أو توقعات مستقبلية." },
+            { id: "acr_06", en: "Did you walk across the field?", ar: "هل مشيت عبر الحقل؟", context: "في السؤال", highlight: "walk across", pronunciation_en: "/dɪd ju wɔːk əˈkrɒs ðə fiːld?/", pronunciation_ar: "ديد يو ووك أَكروس ذَا فيلد؟", tip_ar: "لصياغة سؤال في الماضي البسيط، نستخدم 'Did' ويعود الفعل الرئيسي 'walk' إلى مصدره." },
+            { id: "acr_07", en: "I didn’t go across the road.", ar: "أنا لم أعبر الطريق.", context: "في النفي", highlight: "go across", pronunciation_en: "/aɪ ˈdɪdnt ɡoʊ əˈkrɒs ðə roʊd/", pronunciation_ar: "آي ديدنت غو أَكروس ذَا رود.", tip_ar: "للنفي في الماضي البسيط، نستخدم 'didn't' + مصدر الفعل." },
+            { id: "acr_08", en: "I looked across and saw her smiling.", ar: "نظرتُ إلى الجهة المقابلة ورأيتها تبتسم.", context: "كظرف (بدون اسم بعده)", highlight: "across", pronunciation_en: "/aɪ lʊkt əˈkrɒs ənd sɔː hər ˈsmaɪlɪŋ/", pronunciation_ar: "آي لوكت أَكروس آند سو هير سمايلينغ.", tip_ar: "هنا 'across' تعمل كظرف مكان ولا يتبعها اسم. هي تعني 'إلى الجانب الآخر'." },
+            { id: "acr_09", en: "The news spread across the internet.", ar: "انتشر الخبر عبر الإنترنت.", context: "في الاتجاه المجازي", highlight: "across the internet", pronunciation_en: "/ðə njuːz sprɛd əˈkrɒs ði ˈɪntərnɛt/", pronunciation_ar: "ذَا نيوز سبريد أَكروس ذي إنترنت.", tip_ar: "استخدام مجازي يعني الانتشار على نطاق واسع أو في كل مكان داخل منطقة معينة (مثل الإنترنت)." },
+            { id: "acr_10", en: "There are schools across the country.", ar: "توجد مدارس في جميع أنحاء البلاد.", context: "مع أماكن متعددة", highlight: "across the country", pronunciation_en: "/ðər ɑːr skuːlz əˈkrɒs ðə ˈkʌntri/", pronunciation_ar: "ذير آر سكولز أَكروس ذَا كانتري.", tip_ar: "في هذا السياق، 'across' تعني 'في كل جزء من' أو 'في جميع أنحاء'." },
+            { id: "acr_11", en: "He lives across the river.", ar: "هو يعيش على الضفة الأخرى من النهر.", context: "في وصف الأماكن", highlight: "across the river", pronunciation_en: "/hi lɪvz əˈkrɒs ðə ˈrɪvər/", pronunciation_ar: "هي ليفز أَكروس ذَا ريفر.", tip_ar: "تصف موقعًا في الجهة المقابلة لفاصل طبيعي مثل نهر أو بحيرة." },
+            { id: "acr_12", en: "— Where’s the pharmacy? — Just across the road.", ar: "— أين الصيدلية؟ — على الجانب الآخر من الطريق مباشرة.", context: "في الحوارات اليومية", highlight: "across the road", pronunciation_en: "/wɛərz ðə ˈfɑːməsi? dʒəst əˈkrɒs ðə roʊd/", pronunciation_ar: "ويرز ذَا فارمَسي؟ جاست أَكروس ذَا رود.", tip_ar: "هذه إجابة مختصرة وشائعة جدًا في المحادثات اليومية لإعطاء الاتجاهات." },
+            { id: "acr_13", en: "She sat across from me at the table.", ar: "جلست مقابلتي على الطاولة.", context: "مع “from” لإظهار الجهة المقابلة", highlight: "across from", pronunciation_en: "/ʃi sæt əˈkrɒs frəm mi ət ðə ˈteɪbl/", pronunciation_ar: "شي سات أَكروس فروم مي آت ذَا تايبل.", tip_ar: "التعبير 'across from' يعني 'في الجهة المقابلة مباشرةً' أو 'وجهًا لوجه'، وهو شائع لوصف أماكن الجلوس." },
+            { id: "acr_14", en: "Go across the street and turn left.", ar: "اعبر الشارع ثم انعطف يسارًا.", context: "في وصف الطرقات / الاتجاهات", highlight: "Go across", pronunciation_en: "/ɡoʊ əˈkrɒs ðə striːt ənd tɜːrn lɛft/", pronunciation_ar: "غو أَكروس ذَا ستريت آند تيرن ليفت.", tip_ar: "جملة أمر شائعة جدًا في إعطاء إرشادات الطريق." },
+            { id: "acr_15", en: "There are differences across cultures.", ar: "توجد اختلافات عبر الثقافات.", context: "في التعليم أو العروض", highlight: "across cultures", pronunciation_en: "/ðər ɑːr ˈdɪfrənsɪz əˈkrɒs ˈkʌltʃərz/", pronunciation_ar: "ذير آر ديفرنسيز أَكروس كالتشرز.", tip_ar: "استخدام مجازي آخر يعني 'بين' أو 'عند مقارنة' مجموعات مختلفة." }
+        ]
+    },
+    'act': {
+        title: "act",
+        sentences: [
+            { id: "act_01", en: "They often act in school plays.", ar: "هم غالبًا ما يمثلون في مسرحيات المدرسة.", context: "كفعل - في المضارع البسيط", highlight: "act", pronunciation_en: "/ðeɪ ˈɒfən ækt ɪn skuːl pleɪz/", pronunciation_ar: "ذاي أوفين آكت إن سكول بليز.", tip_ar: "الفعل 'act' هنا يعني 'يؤدي دورًا تمثيليًا'. لا يأخذ 's' مع الفاعل الجمع 'They' في زمن المضارع البسيط." },
+            { id: "act_02", en: "She acted in a short movie last year.", ar: "لقد مثلت في فيلم قصير العام الماضي.", context: "كفعل - في الماضي البسيط", highlight: "acted", pronunciation_en: "/ʃi ˈæktɪd ɪn ə ʃɔːrt ˈmuːvi lɑːst jɪər/", pronunciation_ar: "شي آكتِد إن أَ شورت موفي لاست يير.", tip_ar: "الفعل 'act' هو فعل منتظم، لذا نضيف '-ed' في الماضي ليصبح 'acted'. النطق يكون 'آكتِد'." },
+            { id: "act_03", en: "He will act in the next show.", ar: "سوف يمثل في العرض القادم.", context: "فعل في المستقبل", highlight: "will act", pronunciation_en: "/hi wɪl ækt ɪn ðə nɛkst ʃoʊ/", pronunciation_ar: "هي ويل آكت إن ذَا نيكست شو.", tip_ar: "للتعبير عن المستقبل، نستخدم 'will' + مصدر الفعل 'act'." },
+            { id: "act_04", en: "Did you act in that scene?", ar: "هل مثلت في ذلك المشهد؟", context: "في السؤال", highlight: "act", pronunciation_en: "/dɪd ju ækt ɪn ðæt siːn?/", pronunciation_ar: "ديد يو آكت إن ذات سين؟", tip_ar: "للسؤال في الماضي البسيط، نستخدم 'Did' ويعود الفعل الرئيسي 'act' إلى مصدره." },
+            { id: "act_05", en: "I didn’t act well in the play.", ar: "لم أمثل جيدًا في المسرحية.", context: "في النفي", highlight: "act", pronunciation_en: "/aɪ ˈdɪdnt ækt wɛl ɪn ðə pleɪ/", pronunciation_ar: "آي ديدنت آكت ويل إن ذَا بلاي.", tip_ar: "للنفي في الماضي البسيط، نستخدم 'didn't' متبوعة بمصدر الفعل 'act'." },
+            { id: "act_06", en: "Please act politely in class.", ar: "من فضلك تصرف بأدب في الفصل.", context: "بمعنى “يتصرف”", highlight: "act politely", pronunciation_en: "/pliːz ækt pəˈlaɪtli ɪn klɑːs/", pronunciation_ar: "بليز آكت بولايتلي إن كلاس.", tip_ar: "هنا 'act' تعني 'يتصرف' أو 'يسلك سلوكًا'. 'politely' هو ظرف يصف كيفية التصرف." },
+            { id: "act_07", en: "She acted quickly to help him.", ar: "لقد تصرفت بسرعة لمساعدته.", context: "مع الصفات", highlight: "acted quickly", pronunciation_en: "/ʃi ˈæktɪd ˈkwɪkli tə hɛlp hɪm/", pronunciation_ar: "شي آكتِد كويكلي تو هيلب هيم.", tip_ar: "يأتي الظرف (adverb) مثل 'quickly' بعد الفعل 'act' ليصف كيفية حدوث التصرف." },
+            { id: "act_08", en: "Act like you’re happy!", ar: "تصرف وكأنك سعيد!", context: "كفعل أمر", highlight: "Act like", pronunciation_en: "/ækt laɪk jʊər ˈhæpi!/", pronunciation_ar: "آكت لايك يور هابي!", tip_ar: "في صيغة الأمر، نبدأ الجملة بالفعل مباشرةً لإعطاء تعليمات." },
+            { id: "act_09", en: "My favorite act in the play was the last one.", ar: "المشهد المفضل لدي في المسرحية كان الأخير.", context: "كاسم - مشهد تمثيلي", highlight: "act", pronunciation_en: "/maɪ ˈfeɪvərɪt ækt ɪn ðə pleɪ wəz ðə lɑːst wʌn/", pronunciation_ar: "ماي فيفوريت آكت إن ذَا بلاي ووز ذَا لاست وان.", tip_ar: "هنا 'act' اسم يعني 'فصل' أو 'جزء رئيسي' من مسرحية أو عرض." },
+            { id: "act_10", en: "That was a kind act.", ar: "لقد كان ذلك تصرفًا لطيفًا.", context: "كاسم - تصرف", highlight: "act", pronunciation_en: "/ðæt wəz ə kaɪnd ækt/", pronunciation_ar: "ذات ووز أَ كايند آكت.", tip_ar: "هنا 'act' اسم يعني 'فعل' أو 'تصرف'. يأتي قبله صفة مثل 'kind' لوصفه." },
+            { id: "act_11", en: "Don’t just talk — act!", ar: "لا تتحدث فقط — بل تصرف!", context: "في تعبير شائع", highlight: "act", pronunciation_en: "/doʊnt dʒəst tɔːk — ækt!/", pronunciation_ar: "دونت جاست توك — آكت!", tip_ar: "تعبير يُستخدم للحث على اتخاذ إجراء فعلي بدلاً من مجرد الكلام." },
+            { id: "act_12", en: "It was an act of kindness.", ar: "لقد كان عملاً من أعمال اللطف.", context: "مع “of” كتعبير رسمي", highlight: "act of", pronunciation_en: "/ɪt wəz ən ækt əv ˈkaɪndnəs/", pronunciation_ar: "إت ووز آن آكت أوف كايندنيس.", tip_ar: "التركيب 'an act of' + (اسم) هو طريقة رسمية لوصف نوع التصرف. نستخدم 'an' لأن 'act' تبدأ بصوت علة." },
+            { id: "act_13", en: "The children prepared an act for the show.", ar: "أعد الأطفال فقرة تمثيلية للعرض.", context: "في المدرسة / النشاطات", highlight: "act", pronunciation_en: "/ðə ˈtʃɪldrən prɪˈpɛərd ən ækt fər ðə ʃoʊ/", pronunciation_ar: "ذَا تشيلدرين بريبيرد آن آكت فور ذَا شو.", tip_ar: "بمعنى 'فقرة' أو 'مقطع' من عرض. شائع في سياقات الأنشطة المدرسية أو المواهب." },
+            { id: "act_14", en: "He is acting strange today.", ar: "إنه يتصرف بغرابة اليوم.", context: "كفعل في المعنى المجازي", highlight: "acting strange", pronunciation_en: "/hi ɪz ˈæktɪŋ streɪndʒ təˈdeɪ/", pronunciation_ar: "هي إز آكتينغ ستراينج توداي.", tip_ar: "استخدام 'be + acting + adjective' شائع لوصف سلوك شخص ما في لحظة معينة والذي يختلف عن المعتاد." }
+        ]
+    },
+    'action_adj': {
+        title: "action (as an adjective)",
+        sentences: [
+            { id: "acn_01", en: "We watched an exciting action movie.", ar: "شاهدنا فيلم حركة مثيرًا.", context: "وصف نوع من الأفلام", highlight: "action movie", pronunciation_en: "/wi wɒtʃt ən ɪkˈsaɪtɪŋ ˈækʃən ˈmuːvi/", pronunciation_ar: "وي ووتشت آن إكسايتينغ آكشن موفي.", tip_ar: "هنا، كلمة 'action' تعمل كصفة لوصف نوع الفيلم. 'action movie' هو مصطلح شائع يعني 'فيلم حركة'." },
+            { id: "acn_02", en: "Do you like action films?", ar: "هل تحب أفلام الحركة؟", context: "في سؤال عن النوع", highlight: "action films", pronunciation_en: "/du ju laɪk ˈækʃən fɪlmz?/", pronunciation_ar: "دو يو لايك آكشن فيلمز؟", tip_ar: "هذا سؤال شائع للسؤال عن التفضيلات الشخصية المتعلقة بأنواع الأفلام والاهتمامات." },
+            { id: "acn_03", en: "He plays action video games every day.", ar: "هو يلعب ألعاب الفيديو الحركية كل يوم.", context: "مع أنواع الألعاب", highlight: "action video games", pronunciation_en: "/hi pleɪz ˈækʃən ˈvɪdioʊ ɡeɪmz ˈɛvri deɪ/", pronunciation_ar: "هي بلايز آكشن فيديو غايمز إفري داي.", tip_ar: "تستخدم 'action' لوصف فئة ألعاب الفيديو التي تتميز بالسرعة والتحديات البدنية الافتراضية." },
+            { id: "acn_04", en: "This is an action TV show.", ar: "هذا برنامج تلفزيوني حركي.", context: "في وصف البرامج", highlight: "action TV show", pronunciation_en: "/ðɪs ɪz ən ˈækʃən ˌtiːˈviː ʃoʊ/", pronunciation_ar: "ذيس إز آن آكشن تي في شو.", tip_ar: "كما هو الحال مع الأفلام، يمكن استخدام 'action' لتصنيف البرامج والمسلسلات التلفزيونية." },
+            { id: "acn_05", en: "The boys enjoy action sports like football.", ar: "يستمتع الأولاد بالرياضات الحركية مثل كرة القدم.", context: "مع أسماء الأنشطة", highlight: "action sports", pronunciation_en: "/ðə bɔɪz ɪnˈdʒɔɪ ˈækʃən spɔːrts laɪk ˈfʊtbɔːl/", pronunciation_ar: "ذَا بويز إنجوي آكشن سبورتس لايك فوتبول.", tip_ar: "'action sports' هو مصطلح يصف الرياضات التي تتطلب مجهودًا بدنيًا كبيرًا وحركة مستمرة." },
+            { id: "acn_06", en: "The story is full of action scenes.", ar: "القصة مليئة بمشاهد الحركة.", context: "في الكتابة/الوصف الأدبي", highlight: "action scenes", pronunciation_en: "/ðə ˈstɔːri ɪz fʊl əv ˈækʃən siːnz/", pronunciation_ar: "ذَا ستوري إز فول أوف آكشن سينز.", tip_ar: "تستخدم لوصف أجزاء معينة من قصة أو كتاب تتميز بالإثارة والنشاط." },
+            { id: "acn_07", en: "Don’t miss this action-packed film!", ar: "لا تفوت هذا الفيلم المليء بالحركة!", context: "في الاستخدامات الصحفية / الإعلانية", highlight: "action-packed", pronunciation_en: "/doʊnt mɪs ðɪs ˈækʃən-pækt fɪlm!/", pronunciation_ar: "دونت ميس ذيس آكشن-باكت فيلم!", tip_ar: "الصفة المركبة 'action-packed' هي طريقة شائعة لوصف شيء مليء بالإثارة والحركة، وتستخدم كثيرًا في الإعلانات." },
+            { id: "acn_08", en: "I prefer action movies to romantic ones.", ar: "أنا أفضل أفلام الحركة على الأفلام الرومانسية.", context: "للتفضيل / الرأي", highlight: "action movies", pronunciation_en: "/aɪ prɪˈfɜːr ˈækʃən ˈmuːviz tə roʊˈmæntɪk wʌnz/", pronunciation_ar: "آي بريفير آكشن موفيز تو رومانتيك وانز.", tip_ar: "تستخدم 'action' كجزء من المقارنة عند التعبير عن الرأي أو التفضيل بين أنواع مختلفة." },
+            { id: "acn_09", en: "I don’t like violent action games.", ar: "أنا لا أحب ألعاب الحركة العنيفة.", context: "مع أدوات النفي", highlight: "action games", pronunciation_en: "/aɪ doʊnt laɪk ˈvaɪələnt ˈækʃən ɡeɪmz/", pronunciation_ar: "آي دونت لايك فايولنت آكشن غايمز.", tip_ar: "يمكن استخدام صفات إضافية مثل 'violent' قبل 'action games' لتقديم وصف أكثر تحديدًا." }
+        ]
+    },
+    'activity': {
+        title: "activity",
+        sentences: [
+            { id: "actv_01", en: "The children are doing a fun activity.", ar: "يقوم الأطفال بنشاط ممتع.", context: "جملة بسيطة مثبتة", highlight: "activity", pronunciation_en: "/ðə ˈtʃɪldrən ɑːr ˈduːɪŋ ə fʌn ækˈtɪvəti/", pronunciation_ar: "ذَا تشيلدرين آر دوينغ أَ فان آكتيفيتي.", tip_ar: "كلمة 'activity' اسم مفرد يعني 'نشاط'. الفعل 'are doing' هو زمن المضارع المستمر، لوصف حدث يقع الآن." },
+            { id: "actv_02", en: "We did a group activity in class.", ar: "قمنا بنشاط جماعي في الفصل.", context: "في المدرسة", highlight: "group activity", pronunciation_en: "/wi dɪd ə ɡruːp ækˈtɪvəti ɪn klɑːs/", pronunciation_ar: "وي ديد أَ غروب آكتيفيتي إن كلاس.", tip_ar: "'group activity' هو تعبير شائع في البيئة التعليمية ويعني نشاطًا يقوم به الطلاب معًا في مجموعات." },
+            { id: "actv_03", en: "They planned some outdoor activities.", ar: "لقد خططوا لبعض الأنشطة الخارجية.", context: "في الجمع", highlight: "activities", pronunciation_en: "/ðeɪ plænd səm ˈaʊtdɔːr ækˈtɪvətiz/", pronunciation_ar: "ذاي بلاند سام آوتدور آكتيفيتيز.", tip_ar: "الجمع من 'activity' هو 'activities'. القاعدة هي حذف الـ '-y' وإضافة '-ies'." },
+            { id: "actv_04", en: "What activities do you enjoy on the weekend?", ar: "ما هي الأنشطة التي تستمتع بها في عطلة نهاية الأسبوع؟", context: "في السؤال", highlight: "activities", pronunciation_en: "/wɒt ækˈtɪvətiz du ju ɪnˈdʒɔɪ ɒn ðə ˈwiːkˈɛnd?/", pronunciation_ar: "وات آكتيفيتيز دو يو إنجوي أون ذَا ويكيند؟", tip_ar: "سؤال شائع للسؤال عن الهوايات والاهتمامات. نستخدم صيغة الجمع 'activities' لأننا نتوقع أكثر من إجابة." },
+            { id: "actv_05", en: "There aren’t many activities in this area.", ar: "لا توجد أنشطة كثيرة في هذه المنطقة.", context: "في النفي", highlight: "activities", pronunciation_en: "/ðər ɑːnt ˈmɛni ækˈtɪvətiz ɪn ðɪs ˈɛəriə/", pronunciation_ar: "ذير آرنت ميني آكتيفيتيز إن ذيس إيريا.", tip_ar: "للنفي، نستخدم 'There aren't' مع الأسماء المعدودة في صيغة الجمع مثل 'activities'." },
+            { id: "actv_06", en: "My favorite activity is swimming.", ar: "نشاطي المفضل هو السباحة.", context: "مع “favorite”", highlight: "activity", pronunciation_en: "/maɪ ˈfeɪvərɪt ækˈtɪvəti ɪz ˈswɪmɪŋ/", pronunciation_ar: "ماي فيفوريت آكتيفيتي إز سويمينغ.", tip_ar: "تعبير شائع للحديث عن هواية أو نشاط مفضل. 'favorite' تعني 'مفضل'." },
+            { id: "actv_07", en: "It’s a great activity for families.", ar: "إنه نشاط رائع للعائلات.", context: "في سياق الأسرة", highlight: "activity for families", pronunciation_en: "/ɪts ə ɡreɪt ækˈtɪvəti fər ˈfæməlɪz/", pronunciation_ar: "إتس أَ غرايت آكتيفيتي فور فاميليز.", tip_ar: "تستخدم لوصف شيء مناسب لجميع أفراد الأسرة للقيام به معًا." },
+            { id: "actv_08", en: "It was a creative and fun activity.", ar: "لقد كان نشاطًا إبداعيًا وممتعًا.", context: "مع الصفات", highlight: "activity", pronunciation_en: "/ɪt wəz ə kriˈeɪtɪv ənd fʌn ækˈtɪvəti/", pronunciation_ar: "إت ووز أَ كريايتيف آند فان آكتيفيتي.", tip_ar: "يمكن استخدام صفات متعددة مثل 'creative' و 'fun' لوصف طبيعة النشاط." },
+            { id: "actv_09", en: "Hiking is a popular activity here.", ar: "المشي لمسافات طويلة هو نشاط شائع هنا.", context: "في السياحة / الترفيه", highlight: "activity", pronunciation_en: "/ˈhaɪkɪŋ ɪz ə ˈpɒpjələr ækˈtɪvəti hɪər/", pronunciation_ar: "هايكينغ إز أَ بوبيولار آكتيفيتي هير.", tip_ar: "تُستخدم لوصف الأنشطة الترفيهية الشائعة بين السياح أو السكان المحليين في منطقة معينة." },
+            { id: "actv_10", en: "Walking is a healthy activity.", ar: "المشي نشاط صحي.", context: "في السياق الصحي", highlight: "activity", pronunciation_en: "/ˈwɔːkɪŋ ɪz ə ˈhɛlθi ækˈtɪvəti/", pronunciation_ar: "ووكينغ إز أَ هيلثي آكتيفيتي.", tip_ar: "تستخدم غالبًا للحديث عن الأنشطة البدنية وفوائدها الصحية. 'physical activity' هو تعبير شائع أيضًا." },
+            { id: "actv_11", en: "The camp offers many exciting activities.", ar: "يقدم المخيم العديد من الأنشطة المثيرة.", context: "في المخيمات / الصيف", highlight: "activities", pronunciation_en: "/ðə kæmp ˈɒfərz ˈmɛni ɪkˈsaɪtɪŋ ækˈtɪvətiz/", pronunciation_ar: "ذَا كامب أوفرز ميني إكسايتينغ آكتيفيتيز.", tip_ar: "كلمة شائعة جدًا في برامج المخيمات الصيفية والنوادي والرحلات المدرسية." },
+            { id: "actv_12", en: "The next activity starts at 3 p.m.", ar: "النشاط التالي يبدأ الساعة 3 مساءً.", context: "في جدول زمني", highlight: "activity", pronunciation_en: "/ðə nɛkst ækˈtɪvəti stɑːrts ət θriː ˌpiːˈɛm/", pronunciation_ar: "ذَا نيكست آكتيفيتي ستارتس آت ثري بي إم.", tip_ar: "تُستخدم للإشارة إلى فقرة معينة ضمن برنامج أو جدول زمني ليوم ما." },
+            { id: "actv_13", en: "We joined a cleaning activity at school.", ar: "انضممنا إلى نشاط تنظيف في المدرسة.", context: "في الأنشطة التطوعية", highlight: "activity", pronunciation_en: "/wi dʒɔɪnd ə ˈkliːnɪŋ ækˈtɪvəti ət skuːl/", pronunciation_ar: "وي جويند أَ كلينينغ آكتيفيتي آت سكول.", tip_ar: "يمكن استخدامها لوصف مهام منظمة مثل الأنشطة التطوعية أو المدرسية." },
+            { id: "actv_14", en: "She took part in every activity.", ar: "لقد شاركت في كل نشاط.", context: "مع “do / take part in”", highlight: "took part in", pronunciation_en: "/ʃi tʊk pɑːrt ɪn ˈɛvri ækˈtɪvəti/", pronunciation_ar: "شي توك بارت إن إفري آكتيفيتي.", tip_ar: "الفعل 'take part in' يعني 'يشارك في'، وهو تعبير شائع جدًا يأتي مع 'activity'." }
+        ]
+    },
+    'actor': {
+        title: "actor",
+        sentences: [
+            { id: "actr_01", en: "He is a famous actor.", ar: "هو ممثل مشهور.", context: "جملة بسيطة مثبتة", highlight: "actor", pronunciation_en: "/hi ɪz ə ˈfeɪməs ˈæktər/", pronunciation_ar: "هي إز أَ فيمَس آكتور.", tip_ar: "كلمة 'actor' هي اسم مهنة. الصفة 'famous' تأتي قبل الاسم لوصفه. كلمة 'actress' تستخدم للممثلة الأنثى، لكن 'actor' أصبحت تستخدم للجنسين." },
+            { id: "actr_02", en: "Who is your favorite actor?", ar: "من هو ممثلك المفضل؟", context: "في السؤال", highlight: "actor", pronunciation_en: "/huː ɪz jʊər ˈfeɪvərɪt ˈæktər?/", pronunciation_ar: "هو إز يور فيفوريت آكتور؟", tip_ar: "هذا سؤال شائع جداً للسؤال عن الممثل المفضل لدى شخص ما." },
+            { id: "actr_03", en: "She is not an actor, she’s a singer.", ar: "هي ليست ممثلة، إنها مغنية.", context: "في النفي", highlight: "not an actor", pronunciation_en: "/ʃi ɪz nɒt ən ˈæktər, ʃiːz ə ˈsɪŋər/", pronunciation_ar: "شي إز نوت آن آكتور، شيز أَ سينغر.", tip_ar: "للنفي، نضع 'not' بعد فعل الكينونة (am, is, are). لاحظ استخدام 'an' قبل 'actor' و 'a' قبل 'singer'." },
+            { id: "actr_04", en: "Tom Hanks is a great actor.", ar: "توم هانكس ممثل عظيم.", context: "مع صفات", highlight: "actor", pronunciation_en: "/tɒm hæŋks ɪz ə ɡreɪt ˈæktər/", pronunciation_ar: "توم هانكس إز أَ غرايت آكتور.", tip_ar: "تُستخدم الصفات مثل 'great', 'good', 'talented' قبل كلمة 'actor' لوصف مهارته." },
+            { id: "actr_05", en: "I want to be an actor.", ar: "أريد أن أصبح ممثلاً.", context: "مع المهنة", highlight: "an actor", pronunciation_en: "/aɪ wɒnt tə bi ən ˈæktər/", pronunciation_ar: "آي وونت تو بي آن آكتور.", tip_ar: "تعبير شائع للتحدث عن الطموحات المهنية المستقبلية." },
+            { id: "actr_06", en: "He was an actor when he was young.", ar: "لقد كان ممثلاً عندما كان شاباً.", context: "في الماضي", highlight: "an actor", pronunciation_en: "/hi wəz ən ˈæktər wɛn hi wəz jʌŋ/", pronunciation_ar: "هي ووز آن آكتور وين هي ووز يانغ.", tip_ar: "نستخدم 'was' للحديث عن مهنة شخص ما في الماضي." },
+            { id: "actr_07", en: "She met an actor at the airport.", ar: "لقد التقت بممثل في المطار.", context: "مع أدوات تعريف", highlight: "an actor", pronunciation_en: "/ʃi mɛt ən ˈæktər æt ði ˈɛərpɔːrt/", pronunciation_ar: "شي ميت آن آكتور آت ذي إيربورت.", tip_ar: "نستخدم 'an' قبل 'actor' لأنها تبدأ بصوت حرف علة (/æ/). القاعدة تعتمد على الصوت وليس الحرف المكتوب." },
+            { id: "actr_08", en: "He is a better actor than his brother.", ar: "هو ممثل أفضل من أخيه.", context: "في سياق المقارنة", highlight: "better actor", pronunciation_en: "/hi ɪz ə ˈbɛtər ˈæktər ðən hɪz ˈbrʌðər/", pronunciation_ar: "هي إز أَ بيتَر آكتور ذان هيز براذَر.", tip_ar: "للمقارنة بين اثنين، نستخدم صيغة المقارنة للصفة (good -> better) متبوعة بـ 'than'." },
+            { id: "actr_09", en: "Many actors came to the event.", ar: "جاء العديد من الممثلين إلى الحدث.", context: "في الجمع", highlight: "actors", pronunciation_en: "/ˈmɛni ˈæktərz keɪm tə ði ɪˈvɛnt/", pronunciation_ar: "ميني آكتورز كايم تو ذي إيفينت.", tip_ar: "الجمع من 'actor' هو 'actors' بإضافة 's'." },
+            { id: "actr_10", en: "The actor performed on stage.", ar: "أدى الممثل على خشبة المسرح.", context: "مع فعل العمل", highlight: "actor", pronunciation_en: "/ði ˈæktər pərˈfɔːrmd ɒn steɪdʒ/", pronunciation_ar: "ذي آكتور بيرفورمد أون ستايج.", tip_ar: "الفعل 'perform' يعني 'يؤدي عرضًا'، وهو شائع جدًا مع كلمة 'actor'." },
+            { id: "actr_11", en: "The movie has many good actors.", ar: "الفيلم يضم العديد من الممثلين الجيدين.", context: "في السياق السينمائي", highlight: "actors", pronunciation_en: "/ðə ˈmuːvi hæz ˈmɛni ɡʊd ˈæktərz/", pronunciation_ar: "ذَا موفي هاز ميني غود آكتورز.", tip_ar: "استخدام شائع عند الحديث عن جودة التمثيل في فيلم ما." },
+            { id: "actr_12", en: "— What does he do? — He’s an actor.", ar: "— ماذا يعمل؟ — إنه ممثل.", context: "في حوار", highlight: "an actor", pronunciation_en: "/wɒt dəz hi duː? hiːz ən ˈæktər/", pronunciation_ar: "وات داز هي دو؟ هيز آن آكتور.", tip_ar: "السؤال 'What does he do?' هو الطريقة الشائعة للسؤال عن وظيفة شخص ما. الإجابة تكون 'He’s an actor'." }
+        ]
+    },
+    'actually': {
+        title: "actually",
+        sentences: [
+            { id: "actl_01", en: "He’s not Spanish. He’s actually Italian.", ar: "هو ليس إسبانيًا. هو في الواقع إيطالي.", context: "لتصحيح معلومة", highlight: "actually", pronunciation_en: "/hiːz nɒt ˈspænɪʃ. hiːz ˈæktʃuəli ɪˈtæliən/", pronunciation_ar: "هيز نوت سبانيش. هيز آكتشوالي إتاليان.", tip_ar: "أحد الاستخدامات الرئيسية لكلمة 'actually' هو تصحيح معلومة خاطئة أو سوء فهم. تعني 'في الواقع' أو 'في الحقيقة'." },
+            { id: "actl_02", en: "I actually enjoyed the movie!", ar: "لقد استمتعت بالفيلم حقًا! (على غير المتوقع)", context: "للتعبير عن المفاجأة", highlight: "actually", pronunciation_en: "/aɪ ˈæktʃuəli ɪnˈdʒɔɪd ðə ˈmuːvi!/", pronunciation_ar: "آي آكتشوالي إنجويد ذَا موفي!", tip_ar: "تستخدم 'actually' للتعبير عن أن شيئًا ما كان مفاجئًا أو غير متوقع. هنا، لم أكن أتوقع الاستمتاع بالفيلم ولكني استمتعت." },
+            { id: "actl_03", en: "— Do you work here? — Actually, I don’t.", ar: "— هل تعمل هنا؟ — في الحقيقة، لا.", context: "في الرد على سؤال", highlight: "Actually", pronunciation_en: "/du ju wɜːrk hɪər? ˈæktʃuəli, aɪ doʊnt/", pronunciation_ar: "دو يو وورك هير؟ آكتشوالي، آي دونت.", tip_ar: "طريقة مهذبة لبدء إجابة قد تكون غير متوقعة للسائل." },
+            { id: "actl_04", en: "Actually, I think it’s a good idea.", ar: "في الواقع، أعتقد أنها فكرة جيدة.", context: "في البداية لتخفيف الكلام", highlight: "Actually", pronunciation_en: "/ˈæktʃuəli, aɪ θɪŋk ɪts ə ɡʊd aɪˈdɪə/", pronunciation_ar: "آكتشوالي، آي ثينك إتس أَ غود آيديا.", tip_ar: "يمكن أن تأتي في بداية الجملة لجعل الرأي أو الاقتراح يبدو أقل حدة أو مباشرة." },
+            { id: "actl_05", en: "I wanted to go out, but actually, I was too tired.", ar: "أردت الخروج، لكن في الحقيقة، كنت متعبًا جدًا.", context: "في ترتيب الأفكار", highlight: "actually", pronunciation_en: "/aɪ ˈwɒntɪd tə ɡoʊ aʊt, bət ˈæktʃuəli, aɪ wəz tuː ˈtaɪərd/", pronunciation_ar: "آي وونتيد تو غو آوت، بات آكتشوالي، آي ووز تو تايرد.", tip_ar: "تُستخدم لتقديم سبب حقيقي أو غير متوقع لشيء ما، وغالبًا ما تأتي بعد 'but'." },
+            { id: "actl_06", en: "She actually called me yesterday.", ar: "لقد اتصلت بي بالفعل يوم أمس.", context: "مع زمن الماضي", highlight: "actually", pronunciation_en: "/ʃi ˈæktʃuəli kɔːld mi ˈjɛstədeɪ/", pronunciation_ar: "شي آكتشوالي كولد مي يِستِرداي.", tip_ar: "تأتي 'actually' عادة قبل الفعل الرئيسي في الجملة (مثل 'called') للتأكيد على حقيقة وقوعه." },
+            { id: "actl_07", en: "He didn’t actually say that.", ar: "هو لم يقل ذلك في الواقع.", context: "في الجمل السلبية", highlight: "actually", pronunciation_en: "/hi ˈdɪdnt ˈæktʃuəli seɪ ðæt/", pronunciation_ar: "هي ديدنت آكتشوالي ساي ذات.", tip_ar: "في الجمل المنفية، تأتي 'actually' بعد الفعل المساعد المنفي (didn't, doesn't) وقبل الفعل الرئيسي." },
+            { id: "actl_08", en: "That’s actually a good price.", ar: "هذا في الواقع سعر جيد.", context: "في المفاجآت الإيجابية", highlight: "actually", pronunciation_en: "/ðæts ˈæktʃuəli ə ɡʊd praɪs/", pronunciation_ar: "ذاتس آكتشوالي أَ غود برايس.", tip_ar: "تُستخدم للتعبير عن الإعجاب أو الدهشة عندما يكون شيء أفضل من المتوقع." },
+            { id: "actl_09", en: "This is actually quite easy.", ar: "هذا في الواقع سهل للغاية.", context: "مع “be”", highlight: "actually", pronunciation_en: "/ðɪs ɪz ˈæktʃuəli kwaɪt ˈiːzi/", pronunciation_ar: "ذيس إز آكتشوالي كوايت إيزي.", tip_ar: "عند استخدامها مع فعل الكينونة (am, is, are)، تأتي 'actually' بعد الفعل." },
+            { id: "actl_10", en: "Actually, that’s not true.", ar: "في الواقع، هذا غير صحيح.", context: "في النقاشات", highlight: "Actually", pronunciation_en: "/ˈæktʃuəli, ðæts nɒt truː/", pronunciation_ar: "آكتشوالي، ذاتس نوت ترو.", tip_ar: "طريقة مهذبة وشائعة لبدء جملة تعارض ما قاله شخص آخر." },
+            { id: "actl_11", en: "Actually, I have a question about tomorrow’s meeting.", ar: "في الواقع، لدي سؤال حول اجتماع الغد.", context: "في كتابة الرسائل أو البريد الإلكتروني", highlight: "Actually", pronunciation_en: "/ˈæktʃuəli, aɪ hæv ə ˈkwɛstʃən əˈbaʊt təˈmɒroʊz ˈmiːtɪŋ/", pronunciation_ar: "آكتشوالي، آي هاف أَ كويستشن أَباوت توموروز ميتينغ.", tip_ar: "تستخدم في بداية الكلام أو الرسالة لتقديم موضوع جديد أو لتصحيح شيء بطريقة غير مباشرة ومهذبة." }
+        ]
+    },
+    'ad': {
+        title: "ad",
+        sentences: [
+            { id: "ad_01", en: "I saw an ad on TV last night.", ar: "رأيت إعلانًا على التلفزيون الليلة الماضية.", context: "جملة بسيطة مثبتة", highlight: "an ad", pronunciation_en: "/aɪ sɔː ən æd ɒn ˌtiːˈviː lɑːst naɪt/", pronunciation_ar: "آي سو آن آد أون تي في لاست نايت.", tip_ar: "كلمة 'ad' هي اختصار شائع ومقبول لكلمة 'advertisement' (إعلان). نستخدم 'an' قبلها لأنها تبدأ بصوت علة." },
+            { id: "ad_02", en: "Did you see that funny ad?", ar: "هل رأيت ذلك الإعلان المضحك؟", context: "في السؤال", highlight: "ad", pronunciation_en: "/dɪd ju siː ðæt ˈfʌni æd?/", pronunciation_ar: "ديد يو سي ذات فاني آد؟", tip_ar: "تُستخدم للسؤال عن إعلان معين شاهده المستمع على الأغلب." },
+            { id: "ad_03", en: "There wasn’t any ad before the video.", ar: "لم يكن هناك أي إعلان قبل الفيديو.", context: "في النفي", highlight: "ad", pronunciation_en: "/ðər ˈwɒznt ˈɛni æd bɪˈfɔːr ðə ˈvɪdioʊ/", pronunciation_ar: "ذير ووزنت إني آد بيفور ذَا فيديو.", tip_ar: "للنفي، نستخدم 'wasn't' أو 'weren't' مع 'any' للإشارة إلى عدم وجود شيء." },
+            { id: "ad_04", en: "I clicked on an ad by mistake.", ar: "لقد نقرت على إعلان عن طريق الخطأ.", context: "في الإنترنت", highlight: "an ad", pronunciation_en: "/aɪ klɪkt ɒn ən æd baɪ mɪsˈteɪk/", pronunciation_ar: "آي كليكت أون آن آد باي مستايك.", tip_ar: "هذا استخدام شائع جدًا في سياق تصفح الإنترنت ووسائل التواصل الاجتماعي." },
+            { id: "ad_05", en: "That’s a great ad for the new phone.", ar: "هذا إعلان رائع للهاتف الجديد.", context: "مع الصفات", highlight: "ad", pronunciation_en: "/ðæts ə ɡreɪt æd fər ðə njuː foʊn/", pronunciation_ar: "ذاتس أَ غرايت آد فور ذَا نيو فون.", tip_ar: "تُستخدم الصفات مثل 'great' (رائع)، 'bad' (سيء)، أو 'clever' (ذكي) لوصف جودة الإعلان." },
+            { id: "ad_06", en: "They made an ad for their new product.", ar: "لقد صنعوا إعلانًا لمنتجهم الجديد.", context: "في السياق التجاري", highlight: "an ad", pronunciation_en: "/ðeɪ meɪd ən æd fər ðɛər njuː ˈprɒdʌkt/", pronunciation_ar: "ذاي مايد آن آد فور ذير نيو بروداكت.", tip_ar: "الفعل 'make an ad' يعني 'ينتج أو يصنع إعلانًا'." },
+            { id: "ad_07", en: "I hate watching too many ads.", ar: "أكره مشاهدة الكثير من الإعلانات.", context: "في الجمع", highlight: "ads", pronunciation_en: "/aɪ heɪt ˈwɒtʃɪŋ tuː ˈmɛni ædz/", pronunciation_ar: "آي هايت ووتشينغ تو ميني آدز.", tip_ar: "صيغة الجمع من 'ad' هي 'ads' بإضافة 's'." },
+            { id: "ad_08", en: "She posted an ad on Facebook.", ar: "لقد نشرت إعلانًا على فيسبوك.", context: "في مواقع التواصل الاجتماعي", highlight: "an ad", pronunciation_en: "/ʃi ˈpoʊstɪd ən æd ɒn ˈfeɪsbʊk/", pronunciation_ar: "شي بوستِد آن آد أون فيسبوك.", tip_ar: "الفعل 'post an ad' هو التعبير الشائع لنشر إعلان على منصات الإنترنت." },
+            { id: "ad_09", en: "He put an ad in the newspaper to sell his bike.", ar: "وضع إعلانًا في الجريدة لبيع دراجته.", context: "مع “put/post an ad”", highlight: "put an ad", pronunciation_en: "/hi pʊt ən æd ɪn ðə ˈnjuːzˌpeɪpər tə sɛl hɪz baɪk/", pronunciation_ar: "هي بوت آن آد إن ذَا نيوزبيبر تو سيل هيز بايك.", tip_ar: "'put an ad' و 'post an ad' كلاهما يعني 'ينشر إعلانًا'. 'put' أكثر شيوعًا مع الوسائل المطبوعة مثل الجرائد." },
+            { id: "ad_10", en: "— Why did you buy that? — I saw an ad for it.", ar: "— لماذا اشتريت ذلك؟ — رأيت إعلانًا له.", context: "في المحادثات اليومية", highlight: "an ad", pronunciation_en: "/waɪ dɪd ju baɪ ðæt? aɪ sɔː ən æd fər ɪt/", pronunciation_ar: "واي ديد يو باي ذات؟ آي سو آن آد فور إت.", tip_ar: "إجابة شائعة لتبرير عملية شراء ناتجة عن التأثر بالإعلانات." },
+            { id: "ad_11", en: "There’s an ad break coming up.", ar: "هناك فاصل إعلاني قادم.", context: "مع التلفزيون / الراديو", highlight: "ad break", pronunciation_en: "/ðɛərz ən æd breɪk ˈkʌmɪŋ ʌp/", pronunciation_ar: "ذيرز آن آد برايك كامينغ آب.", tip_ar: "'ad break' هو مصطلح يعني 'فاصل إعلاني'، وهو الوقت المخصص لعرض الإعلانات أثناء برنامج تلفزيوني أو إذاعي." },
+            { id: "ad_12", en: "It’s a funny ad.", ar: "إنه إعلان مضحك.", context: "في وصف الإعلان", highlight: "funny ad", pronunciation_en: "/ɪts ə ˈfʌni æd/", pronunciation_ar: "إتس أَ فاني آد.", tip_ar: "يمكن استخدام العديد من الصفات لوصف الإعلانات، مثل 'funny' (مضحك)." },
+            { id: "ad_13", en: "It’s a boring ad.", ar: "إنه إعلان ممل.", context: "في وصف الإعلان", highlight: "boring ad", pronunciation_en: "/ɪts ə ˈbɔːrɪŋ æd/", pronunciation_ar: "إتس أَ بورينغ آد.", tip_ar: "الصفة 'boring' تصف شيئًا غير مثير للاهتمام." },
+            { id: "ad_14", en: "It’s an annoying ad.", ar: "إنه إعلان مزعج.", context: "في وصف الإعلان", highlight: "annoying ad", pronunciation_en: "/ɪts ən əˈnɔɪɪŋ æd/", pronunciation_ar: "إتس آن أَنويينغ آد.", tip_ar: "نستخدم 'an' هنا لأن الصفة 'annoying' (مزعج) تبدأ بصوت علة." }
+        ]
+    },
+    'address': {
+        title: "address",
+        sentences: [
+            { id: "addr_01", en: "My address is 25 King Street.", ar: "عنواني هو 25 شارع كينج.", context: "جملة بسيطة مثبتة", highlight: "address", pronunciation_en: "/maɪ əˈdrɛs ɪz ˈtwɛnti faɪv kɪŋ striːt/", pronunciation_ar: "ماي أَدريس إز توينتي فايف كينغ ستريت.", tip_ar: "كلمة 'address' تُستخدم كاسم للإشارة إلى تفاصيل مكان السكن أو العمل. النطق الشائع للكلمة كاسم هو /əˈdrɛs/." },
+            { id: "addr_02", en: "What’s your address?", ar: "ما هو عنوانك؟", context: "في السؤال", highlight: "address", pronunciation_en: "/wɒts jʊər əˈdrɛs?/", pronunciation_ar: "واتس يور أَدريس؟", tip_ar: "هذا هو السؤال المباشر والأكثر شيوعًا لطلب عنوان شخص ما. 'What's' هي اختصار لـ 'What is'." },
+            { id: "addr_03", en: "I don’t know his address.", ar: "أنا لا أعرف عنوانه.", context: "في النفي", highlight: "address", pronunciation_en: "/aɪ doʊnt noʊ hɪz əˈdrɛs/", pronunciation_ar: "آي دونت نو هيز أَدريس.", tip_ar: "للنفي في زمن المضارع البسيط، نستخدم 'don't' (do not) أو 'doesn't' (does not)." },
+            { id: "addr_04", en: "Please write your name and address.", ar: "من فضلك اكتب اسمك وعنوانك.", context: "في التسجيل / النماذج", highlight: "address", pronunciation_en: "/pliːz raɪt jʊər neɪm ænd əˈdrɛs/", pronunciation_ar: "بليز رايت يور نايم آند أَدريس.", tip_ar: "جملة شائعة جدًا في النماذج والاستمارات التي تتطلب معلومات شخصية." },
+            { id: "addr_05", en: "What’s your email address?", ar: "ما هو عنوان بريدك الإلكتروني؟", context: "مع البريد الإلكتروني", highlight: "email address", pronunciation_en: "/wɒts jʊər ˈiːmeɪl əˈdrɛs?/", pronunciation_ar: "واتس يور إيميل أَدريس؟", tip_ar: "تعبير 'email address' هو المصطلح الكامل والصحيح لعنوان البريد الإلكتروني." },
+            { id: "addr_06", en: "You can send it to this address.", ar: "يمكنك إرسالها إلى هذا العنوان.", context: "في الرسائل", highlight: "address", pronunciation_en: "/ju kæn sɛnd ɪt tə ðɪs əˈdrɛs/", pronunciation_ar: "يو كان سيند إت تو ذيس أَدريس.", tip_ar: "تُستخدم عند إعطاء تعليمات لإرسال طرد أو رسالة بالبريد." },
+            { id: "addr_07", en: "I think this is the wrong address.", ar: "أعتقد أن هذا هو العنوان الخاطئ.", context: "مع الصفات", highlight: "address", pronunciation_en: "/aɪ θɪŋk ðɪs ɪz ðə rɒŋ əˈdrɛs/", pronunciation_ar: "آي ثينك ذيس إز ذَا رونغ أَدريس.", tip_ar: "يمكن استخدام صفات مثل 'new' (جديد)، 'old' (قديم)، أو 'wrong' (خاطئ) لوصف العنوان." },
+            { id: "addr_08", en: "She gave me her address.", ar: "لقد أعطتني عنوانها.", context: "مع “change / give / write”", highlight: "address", pronunciation_en: "/ʃi ɡeɪv mi hɜːr əˈdrɛs/", pronunciation_ar: "شي غايف مي هير أَدريس.", tip_ar: "الأفعال الشائعة التي تأتي مع 'address' هي 'give' (يعطي)، 'write' (يكتب)، 'change' (يغير)، و 'know' (يعرف)." },
+            { id: "addr_09", en: "— Where do you live? — I’ll give you my address.", ar: "— أين تعيش؟ — سأعطيك عنواني.", context: "في المحادثة", highlight: "address", pronunciation_en: "/wɛər du ju lɪv? aɪl ɡɪv ju maɪ əˈdrɛs/", pronunciation_ar: "وير دو يو ليف؟ آيل غيف يو ماي أَدريس.", tip_ar: "السؤال 'Where do you live?' هو طريقة غير رسمية للسؤال عن مكان السكن، والإجابة بتقديم العنوان هي رد طبيعي." },
+            { id: "addr_10", en: "The hotel’s address is easy to find.", ar: "من السهل إيجاد عنوان الفندق.", context: "في التوجيه / الخرائط", highlight: "address", pronunciation_en: "/ðə hoʊˈtɛlz əˈdrɛs ɪz ˈiːzi tə faɪnd/", pronunciation_ar: "ذَا هوتيلز أَدريس إز إيزي تو فايند.", tip_ar: "تستخدم بشكل شائع في سياقات السفر والسياحة عند البحث عن أماكن." },
+            { id: "addr_11", en: "Could you confirm your address, please?", ar: "هل يمكنك تأكيد عنوانك، من فضلك؟", context: "في الطلب الرسمي", highlight: "address", pronunciation_en: "/kʊd ju kənˈfɜːrm jʊər əˈdrɛs, pliːz?/", pronunciation_ar: "كود يو كونفيرم يور أَدريس، بليز؟", tip_ar: "استخدام 'Could you...?' هو طريقة مهذبة ورسمية لطلب شيء ما، مثل تأكيد المعلومات." },
+            { id: "addr_12", en: "I’m not sure if that’s the right address.", ar: "لست متأكدًا مما إذا كان هذا هو العنوان الصحيح.", context: "في النفي غير المباشر", highlight: "address", pronunciation_en: "/aɪm nɒt ʃʊər ɪf ðæts ðə raɪt əˈdrɛs/", pronunciation_ar: "آيم نوت شور إف ذاتس ذَا رايت أَدريس.", tip_ar: "طريقة مهذبة للتعبير عن الشك بدلاً من القول مباشرة 'This address is wrong'." }
+        ]
+    },
+    'adult': {
+        title: "adult",
+        sentences: [
+            { id: "adlt_01", en: "He is an adult now.", ar: "هو شخص بالغ الآن.", context: "كاسم – شخص بالغ", highlight: "an adult", pronunciation_en: "/hi ɪz ən ˈædʌlt naʊ/", pronunciation_ar: "هي إز آن آدَلت ناو.", tip_ar: "كلمة 'adult' كاسم تعني شخصًا مكتمل النمو (عادة فوق 18 عامًا). نستخدم 'an' قبلها لأنها تبدأ بصوت علة." },
+            { id: "adlt_02", en: "Children pay less than adults.", ar: "يدفع الأطفال أقل من البالغين.", context: "في المقارنة", highlight: "adults", pronunciation_en: "/ˈtʃɪldrən peɪ lɛs ðən ˈædʌlts/", pronunciation_ar: "تشيلدرين باي ليس ذان آدَلتس.", tip_ar: "استخدام شائع جدًا عند مقارنة الأسعار أو القواعد بين الأطفال والبالغين. 'adults' هي صيغة الجمع." },
+            { id: "adlt_03", en: "Is this event for adults only?", ar: "هل هذا الحدث للبالغين فقط؟", context: "في السؤال", highlight: "adults", pronunciation_en: "/ɪz ðɪs ɪˈvɛnt fər ˈædʌlts ˈoʊnli?/", pronunciation_ar: "إز ذيس إيفينت فور آدَلتس أونلي؟", tip_ar: "سؤال شائع للاستفسار عن الفئة العمرية المسموح لها بحضور نشاط معين." },
+            { id: "adlt_04", en: "That movie isn’t suitable for adults.", ar: "ذلك الفيلم ليس مناسبًا للبالغين.", context: "في النفي", highlight: "adults", pronunciation_en: "/ðæt ˈmuːvi ˈɪznt ˈsuːtəbl fər ˈædʌlts/", pronunciation_ar: "ذات موفي إزنت سيوتابل فور آدَلتس.", tip_ar: "يمكن استخدامها في النفي لوصف شيء لا يناسب فئة البالغين، على الرغم من أن الشائع هو وصف ما لا يناسب الأطفال." },
+            { id: "adlt_05", en: "This is an adult ticket.", ar: "هذه تذكرة لشخص بالغ.", context: "كصفة – شيء خاص بالكبار", highlight: "adult ticket", pronunciation_en: "/ðɪs ɪz ən ˈædʌlt ˈtɪkɪt/", pronunciation_ar: "ذيس إز آن آدَلت تيكيت.", tip_ar: "هنا، 'adult' تعمل كصفة تصف الاسم 'ticket'. النطق الشائع لها كصفة هو /ˈædʌlt/." },
+            { id: "adlt_06", en: "Being an adult means taking care of yourself.", ar: "كونك بالغًا يعني أن تعتني بنفسك.", context: "مع المسؤولية / الاستقلال", highlight: "an adult", pronunciation_en: "/ˈbiːɪŋ ən ˈædʌlt miːnz ˈteɪkɪŋ kɛər əv jɔːrˈsɛlf/", pronunciation_ar: "بيينغ آن آدَلت مينز تيكينغ كير أوف يورسيلف.", tip_ar: "استخدام معنوي للكلمة للإشارة إلى مرحلة النضج وتحمل المسؤوليات." },
+            { id: "adlt_07", en: "Two adults and three children stayed in the hotel.", ar: "أقام شخصان بالغان وثلاثة أطفال في الفندق.", context: "في الأسرة / التوصيف", highlight: "adults", pronunciation_en: "/tuː ˈædʌlts ənd θriː ˈtʃɪldrən steɪd ɪn ðə hoʊˈtɛl/", pronunciation_ar: "تو آدَلتس آند ثري تشيلدرين ستايد إن ذَا هوتيل.", tip_ar: "استخدام شائع في نماذج الحجز للفنادق أو الطيران لتحديد عدد الأفراد وفئاتهم العمرية." },
+            { id: "adlt_08", en: "The book is written in adult language.", ar: "الكتاب مكتوب بلغة للبالغين.", context: "في الصفات / الأوصاف", highlight: "adult language", pronunciation_en: "/ðə bʊk ɪz ˈrɪtn ɪn ˈædʌlt ˈlæŋɡwɪdʒ/", pronunciation_ar: "ذَا بوك إز ريتين إن آدَلت لانغويج.", tip_ar: "تعبير 'adult language' يمكن أن يعني أن اللغة متقدمة أو أنها تحتوي على كلمات غير مناسبة للأطفال." },
+            { id: "adlt_09", en: "She teaches adult learners.", ar: "هي تدرس متعلمين بالغين.", context: "في التعليم", highlight: "adult learners", pronunciation_en: "/ʃi ˈtiːtʃɪz ˈædʌlt ˈlɜːrnərz/", pronunciation_ar: "شي تيتشيز آدَلت ليرنرز.", tip_ar: "'adult learners' أو 'adult students' يشير إلى الطلاب الذين عادوا للدراسة في سن متقدمة." },
+            { id: "adlt_10", en: "You must be an adult to drive.", ar: "يجب أن تكون بالغًا لتقود السيارة.", context: "مع قوانين أو حدود عمرية", highlight: "an adult", pronunciation_en: "/ju məst bi ən ˈædʌlt tə draɪv/", pronunciation_ar: "يو ماست بي آن آدَلت تو درايف.", tip_ar: "تستخدم 'adult' بشكل متكرر عند الحديث عن السن القانوني للقيام بأنشطة معينة مثل القيادة أو التصويت." },
+            { id: "adlt_11", en: "There is an adult section in the library.", ar: "يوجد قسم للبالغين في المكتبة.", context: "في الأماكن العامة", highlight: "adult section", pronunciation_en: "/ðər ɪz ən ˈædʌlt ˈsɛkʃən ɪn ðə ˈlaɪbrəri/", pronunciation_ar: "ذير إز آن آدَلت سيكشن إن ذَا لايبراري.", tip_ar: "تُستخدم 'adult' كصفة لتصنيف الأقسام أو المحتويات المخصصة للكبار في أماكن مثل المكتبات أو المتاجر." },
+            { id: "adlt_12", en: "This medicine is for adults only.", ar: "هذا الدواء للبالغين فقط.", context: "مع الصحة / الطب", highlight: "adults", pronunciation_en: "/ðɪs ˈmɛdsən ɪz fər ˈædʌlts ˈoʊnli/", pronunciation_ar: "ذيس ميدسين إز فور آدَلتس أونلي.", tip_ar: "شائع في الإرشادات الطبية لتحديد أن الدواء أو الجرعة مخصصة للبالغين وليس للأطفال." }
+        ]
+    },
+    'advanced': {
+        title: "advanced",
+        sentences: [
+            { id: "adv_01", en: "She is in an advanced English class.", ar: "هي في فصل لغة إنجليزية متقدم.", context: "مع المستوى التعليمي / اللغة", highlight: "advanced", pronunciation_en: "/ʃi ɪz ɪn ən ədˈvɑːnst ˈɪŋɡlɪʃ klɑːs/", pronunciation_ar: "شي إز إن آن أدفانست إنغلش كلاس.", tip_ar: "الصفة 'advanced' تعني 'متقدم' أو 'ذو مستوى عالٍ'. تستخدم لوصف مستوى الدورات الدراسية أو المهارات." },
+            { id: "adv_02", en: "This phone has many advanced features.", ar: "هذا الهاتف به العديد من الميزات المتقدمة.", context: "في التكنولوجيا", highlight: "advanced features", pronunciation_en: "/ðɪs foʊn hæz ˈmɛni ədˈvɑːnst ˈfiːtʃərz/", pronunciation_ar: "ذيس فون هاز ميني أدفانست فيتشرز.", tip_ar: "تُستخدم 'advanced' لوصف التكنولوجيا أو الأجهزة التي تحتوي على وظائف حديثة ومعقدة." },
+            { id: "adv_03", en: "We’re learning advanced math now.", ar: "نحن نتعلم الرياضيات المتقدمة الآن.", context: "في الرياضيات / المواد", highlight: "advanced math", pronunciation_en: "/wɪər ˈlɜːrnɪŋ ədˈvɑːnst mæθ naʊ/", pronunciation_ar: "وير ليرنينغ أدفانست ماث ناو.", tip_ar: "تشير إلى موضوع دراسي يتجاوز المستوى الأساسي أو التمهيدي." },
+            { id: "adv_04", en: "He has advanced skills in drawing.", ar: "لديه مهارات متقدمة في الرسم.", context: "في وصف الناس", highlight: "advanced skills", pronunciation_en: "/hi hæz ədˈvɑːnst skɪlz ɪn ˈdrɔːɪŋ/", pronunciation_ar: "هي هاز أدفانست سكيلز إن دروينغ.", tip_ar: "تصف قدرة شخص ما على أداء شيء بمستوى عالٍ من الخبرة." },
+            { id: "adv_05", en: "This course is for advanced students only.", ar: "هذه الدورة للطلاب المتقدمين فقط.", context: "في مقارنة بين الدورات", highlight: "advanced students", pronunciation_en: "/ðɪs kɔːrs ɪz fər ədˈvɑːnst ˈstjuːdənts ˈoʊnli/", pronunciation_ar: "ذيس كورس إز فور أدفانست ستيودنتس أونلي.", tip_ar: "تُستخدم لتحديد الفئة المستهدفة لبرنامج أو نشاط معين." },
+            { id: "adv_06", en: "She’s doing an advanced science project.", ar: "إنها تقوم بمشروع علوم متقدم.", context: "في التعليم الرسمي", highlight: "advanced science project", pronunciation_en: "/ʃiːz ˈduːɪŋ ən ədˈvɑːnst ˈsaɪəns ˈprɒdʒɛkt/", pronunciation_ar: "شيز دوينغ آن أدفانست ساينس بروجيكت.", tip_ar: "تصف المهام الأكاديمية التي تتطلب معرفة وفهمًا أعمق للموضوع." },
+            { id: "adv_07", en: "This book is too advanced for beginners.", ar: "هذا الكتاب متقدم جدًا بالنسبة للمبتدئين.", context: "في النفي", highlight: "too advanced", pronunciation_en: "/ðɪs bʊk ɪz tuː ədˈvɑːnst fər bɪˈɡɪnərz/", pronunciation_ar: "ذيس بوك إز تو أدفانست فور بيغينرز.", tip_ar: "استخدام 'too' قبل 'advanced' يفيد بأن المستوى أعلى من اللازم أو غير مناسب." },
+            { id: "adv_08", en: "There is a beginner and an advanced group.", ar: "توجد مجموعة للمبتدئين ومجموعة للمتقدمين.", context: "في وصف الفئات", highlight: "advanced group", pronunciation_en: "/ðər ɪz ə bɪˈɡɪnər ənd ən ədˈvɑːnst ɡruːp/", pronunciation_ar: "ذير إز أَ بيغينر آند آن أدفانست غروب.", tip_ar: "تُستخدم للمقارنة بين مستويين مختلفين، مثل 'beginner' (مبتدئ) و 'intermediate' (متوسط) و 'advanced' (متقدم)." },
+            { id: "adv_09", en: "This trail is for advanced skiers.", ar: "هذا المسار للمتزلجين المتقدمين.", context: "في السياحة / النشاطات", highlight: "advanced skiers", pronunciation_en: "/ðɪs treɪl ɪz fər ədˈvɑːnst ˈskiːərz/", pronunciation_ar: "ذيس تريل إز فور أدفانست سكييرز.", tip_ar: "في سياق الرياضة والأنشطة، تشير إلى أن النشاط يتطلب مستوى عالٍ من المهارة وهو صعب." },
+            { id: "adv_10", en: "The advanced version of the app costs more.", ar: "النسخة المتقدمة من التطبيق تكلف أكثر.", context: "في الحديث عن البرامج / البرامجيات", highlight: "advanced version", pronunciation_en: "/ði ədˈvɑːnst ˈvɜːrʒn əv ði æp kɒsts mɔːr/", pronunciation_ar: "ذي أدفانست فيرجن أوف ذي آب كوستس مور.", tip_ar: "شائع في التكنولوجيا للتمييز بين النسخة الأساسية (basic) والنسخة المتقدمة (advanced) التي تحتوي على ميزات إضافية." },
+            { id: "adv_11", en: "You need advanced speaking skills for the job.", ar: "أنت بحاجة إلى مهارات تحدث متقدمة لهذه الوظيفة.", context: "مع اللغة / المهارات الشخصية", highlight: "advanced speaking skills", pronunciation_en: "/ju niːd ədˈvɑːnst ˈspiːkɪŋ skɪlz fər ðə dʒɒb/", pronunciation_ar: "يو نيد أدفانست سبيكينغ سكيلز فور ذَا جوب.", tip_ar: "تُستخدم في متطلبات الوظائف لوصف مستوى الكفاءة المطلوب في مهارة معينة." }
+        ]
+    },
+    'adventure': {
+        title: "adventure",
+        sentences: [
+            { id: "advn_01", en: "They went on an exciting adventure.", ar: "لقد ذهبوا في مغامرة مثيرة.", context: "جملة بسيطة مثبتة", highlight: "adventure", pronunciation_en: "/ðeɪ wɛnt ɒn ən ɪkˈsaɪtɪŋ ədˈvɛntʃər/", pronunciation_ar: "ذاي وينت أون آن إكسايتينغ أدفينتشر.", tip_ar: "كلمة 'adventure' هي اسم يعني 'مغامرة' أو تجربة غير عادية ومثيرة. التعبير 'go on an adventure' شائع جدًا." },
+            { id: "advn_02", en: "Have you ever had an adventure while traveling?", ar: "هل مررت بمغامرة من قبل أثناء السفر؟", context: "في السؤال", highlight: "adventure", pronunciation_en: "/hæv ju ˈɛvər hæd ən ədˈvɛntʃər waɪl ˈtrævəlɪŋ?/", pronunciation_ar: "هاف يو إيفر هاد آن أدفينتشر وايل ترافيلينغ؟", tip_ar: "استخدام زمن المضارع التام ('Have you ever...') شائع للسؤال عن التجارب الحياتية السابقة." },
+            { id: "advn_03", en: "I’ve never been on a real adventure.", ar: "لم أذهب في مغامرة حقيقية من قبل.", context: "في النفي", highlight: "adventure", pronunciation_en: "/aɪv ˈnɛvər bɪn ɒn ə rɪəl ədˈvɛntʃər/", pronunciation_ar: "آيف نيفير بين أون أَ ريل أدفينتشر.", tip_ar: "للنفي في زمن المضارع التام، نستخدم 'never' للتعبير عن عدم القيام بشيء على الإطلاق." },
+            { id: "advn_04", en: "It was a long and dangerous adventure.", ar: "لقد كانت مغامرة طويلة وخطيرة.", context: "مع الصفات", highlight: "adventure", pronunciation_en: "/ɪt wəz ə lɒŋ ənd ˈdeɪndʒərəs ədˈvɛntʃər/", pronunciation_ar: "إت ووز أَ لونغ آند داينجرس أدفينتشر.", tip_ar: "يمكن استخدام صفات متعددة مثل 'long', 'exciting', 'dangerous' لوصف طبيعة المغامرة." },
+            { id: "advn_05", en: "The story is about a boy on an adventure.", ar: "القصة تدور حول فتى في مغامرة.", context: "في القصص / الخيال", highlight: "adventure", pronunciation_en: "/ðə ˈstɔːri ɪz əˈbaʊt ə bɔɪ ɒn ən ədˈvɛntʃər/", pronunciation_ar: "ذَا ستوري إز أَباوت أَ بوي أون آن أدفينتشر.", tip_ar: "كلمة 'adventure' شائعة جدًا في عناوين وأوصاف قصص وكتب وأفلام الخيال." },
+            { id: "advn_06", en: "We’re planning an adventure holiday.", ar: "نحن نخطط لعطلة مغامرات.", context: "في السفر / الرحلات", highlight: "adventure holiday", pronunciation_en: "/wɪər ˈplænɪŋ ən ədˈvɛntʃər ˈhɒlədeɪ/", pronunciation_ar: "وير بلانينغ آن أدفينتشر هوليداي.", tip_ar: "'adventure holiday' هو نوع من العطلات التي تتضمن أنشطة مثيرة مثل التسلق أو التخييم بدلاً من الاسترخاء فقط." },
+            { id: "advn_07", en: "— How was your trip? — A real adventure!", ar: "— كيف كانت رحلتك؟ — كانت مغامرة حقيقية!", context: "في الحوارات اليومية", highlight: "adventure", pronunciation_en: "/haʊ wəz jʊər trɪp? ə rɪəl ədˈvɛntʃər!/", pronunciation_ar: "هاو ووز يور تريب؟ أَ ريل أدفينتشر!", tip_ar: "تُستخدم كإجابة مختصرة وحماسية لوصف رحلة كانت مليئة بالأحداث غير المتوقعة والممتعة." },
+            { id: "advn_08", en: "Going to the new market felt like an adventure!", ar: "الذهاب إلى السوق الجديد بدا وكأنه مغامرة!", context: "كاسم غير عادي للحياة اليومية", highlight: "adventure", pronunciation_en: "/ˈɡoʊɪŋ tə ðə njuː ˈmɑːrkɪt fɛlt laɪk ən ədˈvɛntʃər!/", pronunciation_ar: "غوينغ تو ذَا نيو ماركت فيلت لايك آن أدفينتشر!", tip_ar: "يمكن استخدامها بشكل مجازي لوصف أي تجربة جديدة أو غير مألوفة حتى لو كانت بسيطة." },
+            { id: "advn_09", en: "He told us about his many adventures.", ar: "أخبرنا عن مغامراته العديدة.", context: "في الجمع", highlight: "adventures", pronunciation_en: "/hi toʊld əs əˈbaʊt hɪz ˈmɛni ədˈvɛntʃərz/", pronunciation_ar: "هي تولد أس أَباوت هيز ميني أدفينتشرز.", tip_ar: "صيغة الجمع من 'adventure' هي 'adventures' بإضافة 's'." },
+            { id: "advn_10", en: "They enjoyed their adventure in the mountains.", ar: "لقد استمتعوا بمغامرتهم في الجبال.", context: "مع الأفعال الشائعة", highlight: "adventure", pronunciation_en: "/ðeɪ ɪnˈdʒɔɪd ðɛər ədˈvɛntʃər ɪn ðə ˈmaʊntɪnz/", pronunciation_ar: "ذاي إنجويد ذير أدفينتشر إن ذَا ماونتنز.", tip_ar: "الأفعال الشائعة مع 'adventure' هي 'have', 'go on', و 'enjoy'." },
+            { id: "advn_11", en: "She has a love for risk and adventure.", ar: "لديها حب للمخاطرة والمغامرة.", context: "في وصف الشخصية", highlight: "adventure", pronunciation_en: "/ʃi hæz ə lʌv fər rɪsk ənd ədˈvɛntʃər/", pronunciation_ar: "شي هاز أَ لاف فور ريسك آند أدفينتشر.", tip_ar: "تُستخدم 'adventure' هنا كاسم مجرد لوصف نوعية أو سمة شخصية يحبها الشخص." }
+        ]
+    },
+    'advert': {
+        title: "advert",
+        sentences: [
+            { id: "advr_01", en: "I saw an advert for a new phone.", ar: "رأيت إعلانًا لهاتف جديد.", context: "جملة مثبتة بسيطة", highlight: "an advert", pronunciation_en: "/aɪ sɔː ən ˈædvɜːrt fər ə njuː foʊn/", pronunciation_ar: "آي سو آن آدفيرت فور أَ نيو فون.", tip_ar: "كلمة 'advert' هي اختصار شائع لكلمة 'advertisement' (إعلان)، وهي أكثر شيوعًا في اللغة الإنجليزية البريطانية. نستخدم 'an' قبلها." },
+            { id: "advr_02", en: "Did you see that funny advert on TV?", ar: "هل رأيت ذلك الإعلان المضحك على التلفزيون؟", context: "في السؤال", highlight: "advert", pronunciation_en: "/dɪd ju siː ðæt ˈfʌni ˈædvɜːrt ɒn ˌtiːˈviː?/", pronunciation_ar: "ديد يو سي ذات فاني آدفيرت أون تي في؟", tip_ar: "تُستخدم للسؤال عن إعلان محدد شاهده المستمع على الأغلب." },
+            { id: "advr_03", en: "There wasn’t any advert before the video.", ar: "لم يكن هناك أي إعلان قبل الفيديو.", context: "في النفي", highlight: "advert", pronunciation_en: "/ðər ˈwɒznt ˈɛni ˈædvɜːrt bɪˈfɔːr ðə ˈvɪdioʊ/", pronunciation_ar: "ذير ووزنت إني آدفيرت بيفور ذَا فيديو.", tip_ar: "للنفي، نستخدم 'wasn't' مع 'any' للإشارة إلى عدم وجود شيء." },
+            { id: "advr_04", en: "The advert was very short.", ar: "كان الإعلان قصيرًا جدًا.", context: "مع التلفاز / الإنترنت", highlight: "advert", pronunciation_en: "/ði ˈædvɜːrt wəz ˈvɛri ʃɔːrt/", pronunciation_ar: "ذي آدفيرت ووز فيري شورت.", tip_ar: "تستخدم لوصف الإعلانات التي تظهر في مختلف وسائل الإعلام." },
+            { id: "advr_05", en: "It’s an interesting advert about travel.", ar: "إنه إعلان مثير للاهتمام حول السفر.", context: "مع أدوات التحديد", highlight: "an interesting advert", pronunciation_en: "/ɪts ən ˈɪntrəstɪŋ ˈædvɜːrt əˈbaʊt ˈtrævl/", pronunciation_ar: "إتس آن إنتريستينغ آدفيرت أَباوت ترافل.", tip_ar: "نستخدم 'an' لأن الصفة 'interesting' تبدأ بصوت علة." },
+            { id: "advr_06", en: "Write an advert to sell your bike.", ar: "اكتب إعلانًا لبيع دراجتك.", context: "في الصف الدراسي / التعليم", highlight: "an advert", pronunciation_en: "/raɪt ən ˈædvɜːrt tə sɛl jʊər baɪk/", pronunciation_ar: "رايت آن آدفيرت تو سيل يور بايك.", tip_ar: "مهمة أو تمرين شائع في دروس اللغة لتدريب الطلاب على الكتابة الإقناعية." },
+            { id: "advr_07", en: "I don’t like watching too many adverts.", ar: "لا أحب مشاهدة الكثير من الإعلانات.", context: "مع الجمع", highlight: "adverts", pronunciation_en: "/aɪ doʊnt laɪk ˈwɒtʃɪŋ tuː ˈmɛni ˈædvɜːrts/", pronunciation_ar: "آي دونت لايك ووتشينغ تو ميني آدفيرتس.", tip_ar: "صيغة الجمع من 'advert' هي 'adverts' بإضافة 's'." },
+            { id: "advr_08", en: "They posted an advert online.", ar: "لقد نشروا إعلانًا على الإنترنت.", context: "مع الفعل “post / write / see”", highlight: "an advert", pronunciation_en: "/ðeɪ ˈpoʊstɪd ən ˈædvɜːrt ˈɒnˌlaɪn/", pronunciation_ar: "ذاي بوستِد آن آدفيرت أونلاين.", tip_ar: "الأفعال الشائعة مع 'advert' هي 'see' (يرى)، 'write' (يكتب)، و 'post' (ينشر)." },
+            { id: "advr_09", en: "I read the advert in the newspaper.", ar: "قرأت الإعلان في الجريدة.", context: "في الإعلانات الورقية", highlight: "advert", pronunciation_en: "/aɪ rɛd ði ˈædvɜːrt ɪn ðə ˈnjuːzˌpeɪpər/", pronunciation_ar: "آي ريد ذي آدفيرت إن ذَا نيوزبيبر.", tip_ar: "الفعل 'read' في الماضي يُنطق 'red' لكن يكتب بنفس الشكل. تُستخدم مع الوسائل التقليدية كالجرائد." },
+            { id: "advr_10", en: "The job advert says you need experience.", ar: "يقول إعلان الوظيفة إنك بحاجة إلى خبرة.", context: "في السياق الرسمي / العملي", highlight: "job advert", pronunciation_en: "/ðə dʒɒb ˈædvɜːrt sɛz ju niːd ɪkˈspɪəriəns/", pronunciation_ar: "ذَا جوب آدفيرت سيز يو نيد إكسبييريَنس.", tip_ar: "تعبير 'job advert' شائع جدًا ويعني 'إعلان وظيفة'." },
+            { id: "advr_11", en: "— Why did you go to that shop? — I saw an advert.", ar: "— لماذا ذهبت إلى ذلك المتجر؟ — لقد رأيت إعلانًا.", context: "في الحياة اليومية", highlight: "an advert", pronunciation_en: "/waɪ dɪd ju ɡoʊ tə ðæt ʃɒp? aɪ sɔː ən ˈædvɜːrt/", pronunciation_ar: "واي ديد يو غو تو ذات شوب؟ آي سو آن آدفيرت.", tip_ar: "إجابة شائعة ومختصرة لتبرير زيارة مكان أو شراء منتج." }
+        ]
+    },
+    'advertisement': {
+        title: "advertisement",
+        sentences: [
+            { id: "advt_01", en: "I saw an advertisement for a new laptop.", ar: "رأيت إعلانًا لجهاز كمبيوتر محمول جديد.", context: "جملة مثبتة بسيطة", highlight: "an advertisement", pronunciation_en: "/aɪ sɔː ən ədˈvɜːrtɪsmənt fər ə njuː ˈlæpˌtɒp/", pronunciation_ar: "آي سو آن أدفيرتِسمنت فور أَ نيو لابتوب.", tip_ar: "كلمة 'advertisement' هي الكلمة الكاملة والرسمية لـ 'إعلان'. وهي أطول من الاختصارات الشائعة 'ad' و 'advert'." },
+            { id: "advt_02", en: "Did you read the advertisement in the newspaper?", ar: "هل قرأت الإعلان في الجريدة؟", context: "في السؤال", highlight: "advertisement", pronunciation_en: "/dɪd ju riːd ði ədˈvɜːrtɪsmənt ɪn ðə ˈnjuːzˌpeɪpər?/", pronunciation_ar: "ديد يو ريد ذي أدفيرتِسمنت إن ذَا نيوزبيبر؟", tip_ar: "الفعل 'read' في السؤال هنا في صيغة المصدر بعد 'did'. لو كانت جملة ماضية مثبتة لكان نطقها 'red'." },
+            { id: "advt_03", en: "There wasn’t any advertisement in the magazine.", ar: "لم يكن هناك أي إعلان في المجلة.", context: "في النفي", highlight: "advertisement", pronunciation_en: "/ðər ˈwɒznt ˈɛni ədˈvɜːrtɪsmənt ɪn ðə ˌmæɡəˈziːn/", pronunciation_ar: "ذير ووزنت إني أدفيرتِسمنت إن ذَا ماغازين.", tip_ar: "للنفي، نستخدم 'wasn't' مع 'any' للإشارة إلى عدم وجود شيء." },
+            { id: "advt_04", en: "It’s a clever and funny advertisement.", ar: "إنه إعلان ذكي ومضحك.", context: "مع الصفات", highlight: "advertisement", pronunciation_en: "/ɪts ə ˈklɛvər ənd ˈfʌni ədˈvɜːrtɪsmənt/", pronunciation_ar: "إتس أَ كليفر آند فاني أدفيرتِسمنت.", tip_ar: "تُستخدم الصفات لوصف الإعلان. لاحظ أن 'an' لا تأتي هنا لأن الصفة 'clever' تبدأ بصوت ساكن." },
+            { id: "advt_05", en: "The advertisement lasted 30 seconds.", ar: "استمر الإعلان لمدة 30 ثانية.", context: "في الإنترنت / التلفاز", highlight: "advertisement", pronunciation_en: "/ði ədˈvɜːrtɪsmənt ˈlɑːstɪd ˈθɜːrti ˈsɛkəndz/", pronunciation_ar: "ذي أدفيرتِسمنت لاستِد ثيرتي سيكندز.", tip_ar: "تُستخدم لوصف مدة الإعلانات في وسائل الإعلام المختلفة." },
+            { id: "advt_06", en: "The company made an advertisement for its product.", ar: "صنعت الشركة إعلانًا لمنتجها.", context: "في التسويق / البيع", highlight: "an advertisement", pronunciation_en: "/ðə ˈkʌmpəni meɪd ən ədˈvɜːrtɪsmənt fər ɪts ˈprɒdʌkt/", pronunciation_ar: "ذَا كومباني مايد آن أدفيرتِسمنت فور إتس بروداكت.", tip_ar: "في سياق الأعمال، الفعل 'make an advertisement' يعني 'ينتج إعلانًا'." },
+            { id: "advt_07", en: "Write an advertisement for a new toy.", ar: "اكتب إعلانًا للعبة جديدة.", context: "في الصف الدراسي / الأنشطة", highlight: "an advertisement", pronunciation_en: "/raɪt ən ədˈvɜːrtɪsmənt fər ə njuː tɔɪ/", pronunciation_ar: "رايت آن أدفيرتِسمنت فور أَ نيو توي.", tip_ar: "مهمة شائعة في الفصول الدراسية لتعليم الكتابة الإبداعية والتسويق." },
+            { id: "advt_08", en: "There are many advertisements on this website.", ar: "توجد إعلانات كثيرة على هذا الموقع الإلكتروني.", context: "مع الجمع", highlight: "advertisements", pronunciation_en: "/ðər ɑːr ˈmɛni ədˈvɜːrtɪsmənts ɒn ðɪs ˈwɛbˌsaɪt/", pronunciation_ar: "ذير آر ميني أدفيرتِسمنتس أون ذيس ويبسايت.", tip_ar: "صيغة الجمع من 'advertisement' هي 'advertisements' بإضافة 's'." },
+            { id: "advt_09", en: "The school put an advertisement on Facebook.", ar: "وضعت المدرسة إعلانًا على فيسبوك.", context: "مع الأفعال الشائعة", highlight: "an advertisement", pronunciation_en: "/ðə skuːl pʊt ən ədˈvɜːrtɪsmənt ɒn ˈfeɪsbʊk/", pronunciation_ar: "ذَا سكول بوت آن أدفيرتِسمنت أون فيسبوك.", tip_ar: "الأفعال الشائعة مع 'advertisement' هي 'put', 'post', 'create', 'make'." },
+            { id: "advt_10", en: "I saw a job advertisement online.", ar: "رأيت إعلان وظيفة على الإنترنت.", context: "في السياق الرسمي / الوظيفي", highlight: "job advertisement", pronunciation_en: "/aɪ sɔː ə dʒɒb ədˈvɜːrtɪsmənt ˈɒnˌlaɪn/", pronunciation_ar: "آي سو أَ جوب أدفيرتِسمنت أونلاين.", tip_ar: "التعبير 'job advertisement' هو الطريقة الرسمية والكاملة للقول 'إعلان وظيفة'." },
+            { id: "advt_11", en: "That was just an advertisement, not real news.", ar: "لقد كان ذلك مجرد إعلان، وليس أخبارًا حقيقية.", context: "في التعبيرات العامة", highlight: "an advertisement", pronunciation_en: "/ðæt wəz dʒəst ən ədˈvɜːrtɪsmənt, nɒt rɪəl njuːz/", pronunciation_ar: "ذات ووز جاست آن أدفيرتِسمنت، نوت ريل نيوز.", tip_ar: "تُستخدم للتمييز بين المحتوى الإعلاني والمحتوى التحريري أو الإخباري." }
+        ]
+    },
+    'advice': {
+        title: "advice",
+        sentences: [
+            { id: "advc_01", en: "She gave me good advice.", ar: "لقد أعطتني نصيحة جيدة.", context: "جملة مثبتة بسيطة", highlight: "advice", pronunciation_en: "/ʃi ɡeɪv mi ɡʊd ədˈvaɪs/", pronunciation_ar: "شي غايف مي غود أدفايس.", tip_ar: "كلمة 'advice' (نصيحة) هي اسم غير معدود، لذلك لا يمكن أن تأخذ 's' في الجمع ولا نستخدم 'a' أو 'an' قبلها." },
+            { id: "advc_02", en: "Can you give me some advice?", ar: "هل يمكنك أن تعطيني بعض النصائح؟", context: "في السؤال", highlight: "some advice", pronunciation_en: "/kæn ju ɡɪv mi səm ədˈvaɪs?/", pronunciation_ar: "كان يو غيف مي سام أدفايس؟", tip_ar: "لطلب نصيحة، نستخدم 'some advice'. الفعل 'advise' (ينصح) يختلف في الكتابة والنطق (/ədˈvaɪz/)." },
+            { id: "advc_03", en: "I don’t need any advice right now.", ar: "لا أحتاج أي نصيحة الآن.", context: "في النفي", highlight: "any advice", pronunciation_en: "/aɪ doʊnt niːd ˈɛni ədˈvaɪs raɪt naʊ/", pronunciation_ar: "آي دونت نيد إني أدفايس رايت ناو.", tip_ar: "تُستخدم 'any' مع الأسماء غير المعدودة في الجمل المنفية." },
+            { id: "advc_04", en: "He gave me a piece of advice about studying.", ar: "لقد أعطاني نصيحة واحدة حول الدراسة.", context: "مع “some / a piece of”", highlight: "a piece of advice", pronunciation_en: "/hi ɡeɪv mi ə piːs əv ədˈvaɪs əˈbaʊt ˈstʌdiɪŋ/", pronunciation_ar: "هي غايف مي أَ بيس أوف أدفايس أَباوت ستاديينغ.", tip_ar: "بما أن 'advice' غير معدود، نستخدم 'a piece of advice' للحديث عن نصيحة واحدة. للجمع، يمكننا قول 'two pieces of advice'." },
+            { id: "advc_05", en: "That was useful advice.", ar: "لقد كانت تلك نصيحة مفيدة.", context: "مع الصفات", highlight: "advice", pronunciation_en: "/ðæt wəz ˈjuːsfʊl ədˈvaɪs/", pronunciation_ar: "ذات ووز يوسفول أدفايس.", tip_ar: "يمكن استخدام صفات مثل 'useful' (مفيدة)، 'great' (رائعة)، أو 'bad' (سيئة) لوصف النصيحة." },
+            { id: "advc_06", en: "Our teacher gave us advice before the test.", ar: "أعطانا معلمنا نصيحة قبل الاختبار.", context: "في المدرسة / الصف", highlight: "advice", pronunciation_en: "/ˈaʊər ˈtiːtʃər ɡeɪv əs ədˈvaɪs bɪˈfɔːr ðə tɛst/", pronunciation_ar: "آور تيتشر غايف أس أدفايس بيفور ذَا تست.", tip_ar: "استخدام شائع في السياقات التعليمية حيث يقدم المعلمون إرشادات للطلاب." },
+            { id: "advc_07", en: "My parents always give me advice.", ar: "والداي يقدمان لي النصيحة دائمًا.", context: "في الحياة اليومية", highlight: "advice", pronunciation_en: "/maɪ ˈpɛərənts ˈɔːlweɪz ɡɪv mi ədˈvaɪs/", pronunciation_ar: "ماي بيرنتس أولويز غيف مي أدفايس.", tip_ar: "الفعل 'give advice' هو التعبير الشائع لـ 'يقدم نصيحة'." },
+            { id: "advc_08", en: "He asked his boss for advice.", ar: "لقد طلب النصيحة من رئيسه في العمل.", context: "في العمل / الوظائف", highlight: "advice", pronunciation_en: "/hi ɑːskt hɪz bɒs fər ədˈvaɪs/", pronunciation_ar: "هي آسكت هيز بوس فور أدفايس.", tip_ar: "الفعل 'ask for advice' هو التعبير الشائع لـ 'يطلب نصيحة'." },
+            { id: "advc_09", en: "Let me give you some advice.", ar: "دعني أقدم لك بعض النصائح.", context: "في التعبيرات العامة", highlight: "give you some advice", pronunciation_en: "/lɛt mi ɡɪv ju səm ədˈvaɪs/", pronunciation_ar: "ليت مي غيف يو سام أدفايس.", tip_ar: "تعبير شائع ومباشر يستخدمه الشخص عندما يريد أن يقدم نصيحة لشخص آخر." },
+            { id: "advc_10", en: "Thanks for the advice. I’ll think about it.", ar: "شكرًا على النصيحة. سأفكر في الأمر.", context: "في ردود مهذبة", highlight: "advice", pronunciation_en: "/θæŋks fər ði ədˈvaɪs. aɪl θɪŋk əˈbaʊt ɪt/", pronunciation_ar: "ثانكس فور ذي أدفايس. آيل ثينك أَباوت إت.", tip_ar: "رد مهذب وشائع لإظهار التقدير للنصيحة المقدمة، حتى لو لم تكن ستتبعها." },
+            { id: "advc_11", en: "I went to the doctor for some medical advice.", ar: "ذهبت إلى الطبيب للحصول على بعض النصائح الطبية.", context: "في الاستشارات", highlight: "medical advice", pronunciation_en: "/aɪ wɛnt tə ðə ˈdɒktər fər səm ˈmɛdɪkəl ədˈvaɪs/", pronunciation_ar: "آي وينت تو ذَا دوكتور فور سام ميديكال أدفايس.", tip_ar: "تُستخدم 'advice' مع صفات أخرى لتحديد نوع النصيحة، مثل 'medical advice' (نصيحة طبية) أو 'legal advice' (نصيحة قانونية)." }
+        ]
+    }
                 }
             };
             
@@ -364,9 +762,12 @@
                 writingExercise: document.getElementById('writing-exercise-screen'),
                 sessionComplete: document.getElementById('session-complete-screen'),
             };
+            const speedSlider = document.getElementById('speed-slider');
+            const speedValue = document.getElementById('speed-value');
             
             // --- State ---
             let progress = {};
+            let settings = { speechRate: 0.6 };
             let practiceList = [];
             let currentPracticeItem = null;
             let currentLevelKey = null;
@@ -375,6 +776,21 @@
             let previousScreen = 'start';
             let countdownInterval = null;
             let voices = [];
+
+            // --- Settings ---
+            function loadSettings() {
+                const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+                if (savedSettings) {
+                    settings = JSON.parse(savedSettings);
+                }
+                // Apply settings to UI
+                speedSlider.value = settings.speechRate;
+                speedValue.textContent = `${Number(settings.speechRate).toFixed(1)}x`;
+            }
+
+            function saveSettings() {
+                localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+            }
 
             // --- Audio ---
             function loadVoices() {
@@ -390,30 +806,27 @@
                 if (!('speechSynthesis' in window)) return;
                 
                 const utterance = new SpeechSynthesisUtterance(text);
-                
-                // Filter for English voices
                 const englishVoices = voices.filter(voice => voice.lang.startsWith('en-'));
 
                 if (englishVoices.length > 0) {
-                    // Select a random English voice each time
                     const randomVoice = englishVoices[Math.floor(Math.random() * englishVoices.length)];
                     utterance.voice = randomVoice;
                 }
                 
-                utterance.lang = 'en-US'; // Keep lang hint for better pronunciation
-                utterance.rate = 0.6; // Speed: 0.1 (slowest) to 10 (fastest), 1 is default
+                utterance.lang = 'en-US';
+                utterance.rate = settings.speechRate; // Use rate from settings
                 window.speechSynthesis.cancel();
                 window.speechSynthesis.speak(utterance);
             }
 
             // --- Progress & SRS Logic ---
             function loadProgress() {
-                const savedProgress = localStorage.getItem(STORAGE_KEY);
+                const savedProgress = localStorage.getItem(PROGRESS_STORAGE_KEY);
                 progress = savedProgress ? JSON.parse(savedProgress) : {};
             }
 
             function saveProgress() {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+                localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progress));
             }
             
             function initializeLessonProgress(lessonKey) {
@@ -489,9 +902,7 @@
                     </div>
                     ${sentence.tip_ar ? `
                     <div class="sc-tip">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.311a7.5 7.5 0 0 1-7.5 0c-1.42-1.42-2.5-3.52-2.5-6.097C4.5 6.097 6.75 4.5 9.75 4.5s5.25 1.597 5.25 4.185c0 2.577-1.08 4.677-2.5 6.097Z" />
-                        </svg>
+                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
                         <span>${sentence.tip_ar}</span>
                     </div>
                     ` : ''}
@@ -705,9 +1116,7 @@
                 if (sentence.tip_ar) {
                     tipContainer.innerHTML = `
                         <div class="sc-tip">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.311a7.5 7.5 0 0 1-7.5 0c-1.42-1.42-2.5-3.52-2.5-6.097C4.5 6.097 6.75 4.5 9.75 4.5s5.25 1.597 5.25 4.185c0 2.577-1.08 4.677-2.5 6.097Z" />
-                            </svg>
+                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
                             <span>${sentence.tip_ar}</span>
                         </div>`;
                     tipContainer.style.display = 'block';
@@ -761,6 +1170,13 @@
             }
 
             // --- Event Listeners & Navigation ---
+            speedSlider.addEventListener('input', (e) => {
+                const newRate = parseFloat(e.target.value);
+                settings.speechRate = newRate;
+                speedValue.textContent = `${newRate.toFixed(1)}x`;
+                saveSettings();
+            });
+
             document.getElementById('go-to-level-selection-btn').addEventListener('click', () => {
                 const levelList = document.getElementById('level-list');
                 levelList.innerHTML = '';
@@ -836,6 +1252,7 @@
             
             // --- Initial Load ---
             loadProgress();
+            loadSettings();
             loadVoices();
             showScreen('start');
         });
