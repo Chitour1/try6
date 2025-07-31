@@ -258,7 +258,7 @@
         .icon-btn svg { width: 32px; height: 32px; stroke: var(--highlight-color); }
         .icon-btn:hover { border-color: var(--highlight-color); background-color: var(--primary-color); }
 
-        #level-group-list, #level-list, #lesson-list {
+        #level-group-list, #level-subgroup-list, #level-list, #lesson-list {
             display: flex;
             gap: 15px;
             flex-wrap: wrap;
@@ -267,7 +267,7 @@
             width: 100%;
         }
 
-        .level-card, .level-group-card {
+        .level-card, .level-group-card, .level-subgroup-card {
             border: 1px solid var(--tile-border);
             border-radius: 12px;
             padding: 18px 25px;
@@ -285,7 +285,7 @@
             transition: transform 0.2s, border-color 0.3s, background-color 0.3s;
         }
         
-        .level-group-card {
+        .level-group-card, .level-subgroup-card {
              background: var(--tile-bg);
         }
 
@@ -343,7 +343,7 @@
              color: #fff;
         }
 
-        .level-card:hover, .lesson-card:hover, .level-group-card:hover {
+        .level-card:hover, .lesson-card:hover, .level-group-card:hover, .level-subgroup-card:hover {
             transform: translateY(-5px);
             border-color: var(--highlight-color);
         }
@@ -521,6 +521,13 @@
                     <h2 class="screen-title highlight-text">اختر مجموعة المستويات</h2>
                     <div id="level-group-list"></div>
                 </div>
+                
+                <!-- NEW: Level Sub-Group Selection Screen -->
+                <div id="level-subgroup-screen" class="screen hidden">
+                    <div class="back-btn" id="back-to-group-select-from-subgroup">→</div>
+                    <h2 class="screen-title highlight-text">اختر مجموعة فرعية</h2>
+                    <div id="level-subgroup-list"></div>
+                </div>
 
                 <!-- Review Center Screen -->
                 <div id="review-center-screen" class="screen hidden">
@@ -532,7 +539,7 @@
         
                 <!-- Level Selection Screen -->
                 <div id="level-selection-screen" class="screen scrollable-screen hidden">
-                    <div class="back-btn" id="back-to-group-select-from-level">→</div>
+                    <div class="back-btn" id="back-to-subgroup-select-from-level">→</div>
                     <h2 class="screen-title highlight-text">اختر المستوى</h2>
                     <div class="screen-content-wrapper">
                         <div class="level-group-container">
@@ -621,7 +628,7 @@
     <script type="module">
         async function initializeApp() {
             // Correct way to import the library index
-            const { LIBRARY_INDEX } = await import('https://cdn.jsdelivr.net/gh/Chitour1/english2@main/main_library.js');
+            const { LIBRARY_INDEX } = await import('https://cdn.jsdelivr.net/gh/Chitour1/english2@main/main_library3.js');
 
             // --- CONSTANTS & DATA ---
             const PROGRESS_STORAGE_KEY = 'english_srs_progress_v3';
@@ -638,7 +645,8 @@
             // --- DOM Elements ---
             const screens = {
                 start: document.getElementById('start-screen'),
-                levelGroup: document.getElementById('level-group-screen'), // New screen
+                levelGroup: document.getElementById('level-group-screen'),
+                levelSubgroup: document.getElementById('level-subgroup-screen'), // New screen
                 reviewCenter: document.getElementById('review-center-screen'),
                 levelSelection: document.getElementById('level-selection-screen'),
                 lessonSelection: document.getElementById('lesson-selection-screen'),
@@ -781,17 +789,25 @@
                 }
             }
 
-            async function loadAndShowLevels(group) {
+            async function handleGroupSelection(group) {
                 // Show a loader here if desired
                 try {
                     const module = await import(group.filePath);
-                    // Assuming the file exports a single object (e.g., A2_LEVELS)
-                    LESSON_LIBRARY = Object.values(module)[0];
-                    document.getElementById('level-group-title').textContent = group.groupName;
-                    populateLevelSelectionScreen();
-                    showScreen('levelSelection', 'levelGroup');
+                    const exportedKeys = Object.keys(module);
+                    const content = module[exportedKeys[0]]; // Get the first export
+
+                    // Check if the loaded content is another index or the final lesson library
+                    if (exportedKeys[0].includes('_SUB_GROUPS')) {
+                        populateLevelSubgroupScreen(content);
+                        showScreen('levelSubgroup', 'levelGroup');
+                    } else {
+                        LESSON_LIBRARY = content;
+                        document.getElementById('level-group-title').textContent = group.groupName;
+                        populateLevelSelectionScreen();
+                        showScreen('levelSelection', 'levelSubgroup');
+                    }
                 } catch (error) {
-                    console.error("Failed to load level library:", error);
+                    console.error("Failed to load library content:", error);
                     // Show an error message to the user
                 }
                 // Hide loader
@@ -897,7 +913,6 @@
                     sentences.forEach(sentence => {
                         const repsDone = lessonProgress.sentenceProgress[sentence.id] || 0;
                         if (repsDone < repsNeeded) {
-                            // *** BUG FIX IS HERE ***
                             for (let i = 0; i < (repsNeeded - repsDone); i++) {
                                 practiceList.push({ sentence, lessonKey });
                             }
@@ -987,10 +1002,23 @@
                     const card = document.createElement('div');
                     card.className = 'level-group-card';
                     card.textContent = group.groupName;
-                    card.onclick = () => loadAndShowLevels(group);
+                    card.onclick = () => handleGroupSelection(group);
                     list.appendChild(card);
                 });
             }
+            
+            function populateLevelSubgroupScreen(subgroups) {
+                const list = document.getElementById('level-subgroup-list');
+                list.innerHTML = '';
+                subgroups.forEach(group => {
+                    const card = document.createElement('div');
+                    card.className = 'level-subgroup-card';
+                    card.textContent = group.groupName;
+                    card.onclick = () => handleGroupSelection(group);
+                    list.appendChild(card);
+                });
+            }
+
 
             function populateLevelSelectionScreen() {
                 const levelList = document.getElementById('level-list');
@@ -1135,7 +1163,8 @@
 
             // Back Buttons
             document.getElementById('back-to-start-from-group-select').addEventListener('click', () => showScreen('start'));
-            document.getElementById('back-to-group-select-from-level').addEventListener('click', () => showScreen('levelGroup'));
+            document.getElementById('back-to-group-select-from-subgroup').addEventListener('click', () => showScreen('levelGroup'));
+            document.getElementById('back-to-subgroup-select-from-level').addEventListener('click', () => showScreen('levelSubgroup'));
             document.getElementById('back-to-start-from-review').addEventListener('click', () => showScreen('start'));
             document.getElementById('back-to-level-select-from-lesson').addEventListener('click', () => showScreen('levelSelection'));
             document.getElementById('back-to-lesson-select-from-lesson-view').addEventListener('click', () => showScreen('lessonSelection'));
