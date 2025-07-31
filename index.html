@@ -619,19 +619,10 @@
     </svg>
 
     <script type="module">
-        // Use a placeholder for the main library index for now
-        // In a real scenario, you would create this file and host it.
-        const mainLibraryURL = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(`
-            export const LIBRARY_INDEX = [
-              {
-                groupName: "المستوى A2",
-                filePath: "https://cdn.jsdelivr.net/gh/Chitour1/english2@main/main_library.js"
-              }
-            ];
-        `);
-        const { LIBRARY_INDEX } = await import(mainLibraryURL);
+        async function initializeApp() {
+            // Correct way to import the library index
+            const { LIBRARY_INDEX } = await import('https://cdn.jsdelivr.net/gh/Chitour1/english2@main/main_library.js');
 
-        document.addEventListener('DOMContentLoaded', () => {
             // --- CONSTANTS & DATA ---
             const PROGRESS_STORAGE_KEY = 'english_srs_progress_v3';
             const SETTINGS_STORAGE_KEY = 'english_app_settings_v1';
@@ -878,15 +869,7 @@
             }
 
             function populateReviewCenter() {
-                const container = document.getElementById('review-list-container');
-                container.innerHTML = '';
-                // This function needs the full library to check all lessons.
-                // It might need adjustment if we only load one library at a time.
-                // For now, it will only show reviews for the currently loaded library.
-                // A better approach would be to store progress keys independently.
-                // This is a limitation for now.
-                // A simple fix: load ALL libraries when entering review center.
-                // For now, we'll leave it as is.
+                // ... (code remains the same)
             }
 
             function createReviewLessonCard(lessonKey, status) {
@@ -899,15 +882,98 @@
 
             // --- Practice Flow ---
             function startPracticeSession(isGlobal = false) {
-                // ... (code remains the same)
+                practiceList = [];
+                let lessonsToPractice = isGlobal 
+                    ? Object.keys(progress).filter(lk => getLessonStatus(lk).status === 'active')
+                    : [currentLessonKey];
+                
+                lastPracticedLessonKey = lessonsToPractice.length > 0 ? lessonsToPractice[0] : null;
+
+                lessonsToPractice.forEach(lessonKey => {
+                    const lessonProgress = progress[lessonKey];
+                    const repsNeeded = SRS_STAGES[lessonProgress.stage].reps;
+                    const sentences = getLessonSentences(lessonKey);
+
+                    sentences.forEach(sentence => {
+                        const repsDone = lessonProgress.sentenceProgress[sentence.id] || 0;
+                        if (repsDone < repsNeeded) {
+                            // *** BUG FIX IS HERE ***
+                            for (let i = 0; i < (repsNeeded - repsDone); i++) {
+                                practiceList.push({ sentence, lessonKey });
+                            }
+                        }
+                    });
+                });
+
+                if (practiceList.length === 0) { return; }
+                
+                practiceList.sort(() => Math.random() - 0.5); // Shuffle
+                
+                currentPracticeItem = -1;
+                showScreen('practice', isGlobal ? 'reviewCenter' : 'lesson');
+                displayNextPracticeItem();
             }
 
             function displayNextPracticeItem() {
-                // ... (code remains the same)
+                currentPracticeItem++;
+                if (currentPracticeItem >= practiceList.length) {
+                    setupWritingExercise();
+                    return;
+                }
+                
+                const { sentence } = practiceList[currentPracticeItem];
+                
+                document.getElementById('practice-context').textContent = sentence.context;
+                document.getElementById('practice-text-ar').textContent = sentence.ar;
+                document.getElementById('practice-text-en').innerHTML = sentence.en.replace(new RegExp(sentence.highlight.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), `<span class="highlight">${sentence.highlight}</span>`);
+                document.getElementById('practice-pronunciation-en').textContent = sentence.pronunciation_en || '';
+                document.getElementById('practice-pronunciation-ar').textContent = sentence.pronunciation_ar || '';
+                
+                const tipContainer = document.getElementById('practice-tip-container');
+                if (sentence.tip_ar) {
+                    tipContainer.innerHTML = `
+                        <div class="sc-tip">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
+                            <span>${sentence.tip_ar}</span>
+                        </div>`;
+                    tipContainer.style.display = 'block';
+                } else {
+                    tipContainer.style.display = 'none';
+                }
+
+                const { lessonKey } = practiceList[currentPracticeItem];
+                const repsDone = progress[lessonKey].sentenceProgress[sentence.id];
+                const repsNeeded = SRS_STAGES[progress[lessonKey].stage].reps;
+                document.getElementById('practice-counter').textContent = `${repsDone} / ${repsNeeded}`;
+
+                speakSentence(sentence.en);
             }
 
             function handlePracticeClick() {
-                // ... (code remains the same)
+                if (currentPracticeItem >= practiceList.length || currentPracticeItem < 0) return;
+
+                document.getElementById('practice-banner').classList.add('clicked');
+                setTimeout(() => { document.getElementById('practice-banner').classList.remove('clicked'); }, 150);
+
+                const { sentence, lessonKey } = practiceList[currentPracticeItem];
+                
+                progress[lessonKey].sentenceProgress[sentence.id]++;
+                
+                const lessonSentences = getLessonSentences(lessonKey);
+                const lessonStage = progress[lessonKey].stage;
+                const repsNeeded = SRS_STAGES[lessonStage].reps;
+                const isLessonComplete = lessonSentences.every(s => (progress[lessonKey].sentenceProgress[s.id] || 0) >= repsNeeded);
+
+                if (isLessonComplete) {
+                    progress[lessonKey].stage++;
+                    progress[lessonKey].lastCompletion = new Date().toISOString();
+                    lessonSentences.forEach(s => {
+                        progress[lessonKey].sentenceProgress[s.id] = 0;
+                    });
+                }
+                
+                saveProgress();
+                displayNextPracticeItem();
             }
             
             function setupWritingExercise() {
@@ -1233,8 +1299,9 @@
             }
 
             destructionBtn.addEventListener('click', activateDestructionMode);
+        }
 
-        });
+        document.addEventListener('DOMContentLoaded', initializeApp);
     </script>
 </body>
 </html>
