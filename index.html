@@ -842,51 +842,50 @@
 
             // --- Audio ---
             function loadVoices() {
-                voices = window.speechSynthesis.getVoices();
-                if (voices.length === 0) {
-                    window.speechSynthesis.onvoiceschanged = () => {
-                        voices = window.speechSynthesis.getVoices();
-                    };
+                // This function can remain to attempt loading voices for web context,
+                // but the primary logic is now in speakSentence.
+                if ('speechSynthesis' in window) {
+                    voices = window.speechSynthesis.getVoices();
+                    if (voices.length === 0) {
+                        window.speechSynthesis.onvoiceschanged = () => {
+                            voices = window.speechSynthesis.getVoices();
+                        };
+                    }
                 }
             }
 
-            // --- UPDATED FUNCTION ---
+            // --- UPDATED FUNCTION for Native and Web TTS ---
             function speakSentence(text) {
+                // Priority 1: Check for a native Android bridge.
+                // You must create this bridge in your Android code.
+                if (window.AndroidInterface && typeof window.AndroidInterface.speak === 'function') {
+                    window.AndroidInterface.speak(text, settings.speechRate);
+                    return;
+                }
+
+                // Priority 2: Fallback to the Web Speech API for browsers.
                 if (!('speechSynthesis' in window)) {
-                    console.warn('Speech Synthesis not supported.');
+                    console.warn('Web Speech API not supported, and no native Android bridge found.');
                     return;
                 }
                 
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
 
-                // In mobile WebViews, the voice list can be slow to load.
-                // We fetch it directly here to get the most current list.
                 let allVoices = window.speechSynthesis.getVoices();
-
                 if (allVoices.length > 0) {
                     const englishVoices = allVoices.filter(voice => voice.lang.startsWith('en-'));
                     if (englishVoices.length > 0) {
-                        // Improve voice selection for consistency
-                        let selectedVoice = englishVoices.find(voice => voice.name === 'Google US English');
-                        if (!selectedVoice) {
-                             selectedVoice = englishVoices.find(voice => voice.default);
-                        }
-                        if (!selectedVoice) {
-                            selectedVoice = englishVoices[0]; // Fallback to the first available English voice
-                        }
+                        let selectedVoice = englishVoices.find(voice => voice.name === 'Google US English') || englishVoices.find(voice => voice.default) || englishVoices[0];
                         utterance.voice = selectedVoice;
                     }
-                } else {
-                    console.warn("Voice list was empty. Relying on browser default for the language.");
                 }
                 
                 utterance.lang = 'en-US';
                 utterance.rate = settings.speechRate;
                 
-                // Add an error handler for debugging on the device
                 utterance.onerror = (event) => {
-                    console.error(`SpeechSynthesis Error: ${event.error}`);
+                    console.error(`SpeechSynthesis Error: ${event.error}. This might happen in a WebView if the native TTS engine is not available or configured correctly.`);
                 };
                 
                 window.speechSynthesis.speak(utterance);
