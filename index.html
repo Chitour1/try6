@@ -842,8 +842,6 @@
 
             // --- Audio ---
             function loadVoices() {
-                // This function can remain to attempt loading voices for web context,
-                // but the primary logic is now in speakSentence.
                 if ('speechSynthesis' in window) {
                     voices = window.speechSynthesis.getVoices();
                     if (voices.length === 0) {
@@ -853,43 +851,105 @@
                     }
                 }
             }
-
-            // --- UPDATED FUNCTION for Native and Web TTS ---
+            
+            // --- Speech Synthesis Function (with Hybrid App support) ---
             function speakSentence(text) {
-                // Priority 1: Check for a native Android bridge.
-                // You must create this bridge in your Android code.
+                console.log("speakSentence called for: '" + text + "' at rate: " + settings.speechRate);
+
+                // Priority 1: Custom Android Interface (for legacy hybrid apps using WebView's addJavascriptInterface)
                 if (window.AndroidInterface && typeof window.AndroidInterface.speak === 'function') {
-                    window.AndroidInterface.speak(text, settings.speechRate);
-                    return;
-                }
-
-                // Priority 2: Fallback to the Web Speech API for browsers.
-                if (!('speechSynthesis' in window)) {
-                    console.warn('Web Speech API not supported, and no native Android bridge found.');
-                    return;
-                }
-                
-                window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(text);
-
-                let allVoices = window.speechSynthesis.getVoices();
-                if (allVoices.length > 0) {
-                    const englishVoices = allVoices.filter(voice => voice.lang.startsWith('en-'));
-                    if (englishVoices.length > 0) {
-                        let selectedVoice = englishVoices.find(voice => voice.name === 'Google US English') || englishVoices.find(voice => voice.default) || englishVoices[0];
-                        utterance.voice = selectedVoice;
+                    console.log("Using native AndroidInterface.");
+                    try {
+                        window.AndroidInterface.speak(text, settings.speechRate);
+                        return;
+                    } catch (e) {
+                        console.error("Error calling AndroidInterface.speak:", e);
                     }
                 }
+
+                // Priority 2: Capacitor TextToSpeech Plugin (for modern hybrid apps)
+                // This is a common community plugin. The app developer must install it.
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.TextToSpeech) {
+                     console.log("Using Capacitor TextToSpeech plugin.");
+                     try {
+                         window.Capacitor.Plugins.TextToSpeech.speak({
+                             text: text,
+                             lang: 'en-US',
+                             rate: settings.speechRate,
+                             category: 'playback' // Important for iOS to respect silent mode
+                         });
+                         return;
+                     } catch(e) {
+                          console.error("Error calling Capacitor TTS plugin:", e);
+                     }
+                }
+
+                // Priority 3: Cordova TTS Plugin (for older hybrid apps)
+                // This is a common plugin. The app developer must install it.
+                if (window.TTS) {
+                    console.log("Using Cordova TTS plugin.");
+                    try {
+                        window.TTS.speak({
+                            text: text,
+                            locale: 'en-US',
+                            rate: settings.speechRate
+                        }, () => {
+                            console.log('Cordova TTS success.');
+                        }, (reason) => {
+                            console.error('Cordova TTS error:', reason);
+                        });
+                        return;
+                    } catch(e) {
+                        console.error("Error calling Cordova TTS plugin:", e);
+                    }
+                }
+
+                // Priority 4: Web Speech API (Browser fallback)
+                console.log("Falling back to Web Speech API.");
+                if (!('speechSynthesis' in window)) {
+                    console.error('Web Speech API not supported in this environment.');
+                    // You could alert the user here: alert('عذراً، خاصية النطق غير مدعومة.');
+                    return;
+                }
                 
-                utterance.lang = 'en-US';
-                utterance.rate = settings.speechRate;
-                
-                utterance.onerror = (event) => {
-                    console.error(`SpeechSynthesis Error: ${event.error}. This might happen in a WebView if the native TTS engine is not available or configured correctly.`);
+                // This function creates and speaks the utterance.
+                const performSpeak = () => {
+                    if (window.speechSynthesis.speaking) {
+                        console.log('Speech synthesis is busy. Cancelling previous utterance.');
+                        window.speechSynthesis.cancel();
+                    }
+
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'en-US';
+                    utterance.rate = settings.speechRate;
+                    
+                    // Voice selection logic
+                    const voices = window.speechSynthesis.getVoices();
+                    const englishVoice = voices.find(v => v.lang.startsWith('en-') && v.name.includes('Google')) || voices.find(v => v.lang.startsWith('en-') && v.default) || voices.find(v => v.lang.startsWith('en-'));
+                    
+                    if (englishVoice) {
+                        utterance.voice = englishVoice;
+                        console.log('Using voice:', englishVoice.name);
+                    } else {
+                        console.warn("No specific English voice found. Using browser default for 'en-US'.");
+                    }
+                    
+                    utterance.onerror = (event) => {
+                        console.error("Web Speech API Error:", event.error);
+                    };
+                    
+                    window.speechSynthesis.speak(utterance);
                 };
-                
-                window.speechSynthesis.speak(utterance);
+
+                // The getVoices() list is often loaded asynchronously.
+                // This pattern handles both immediate and delayed loading.
+                if (window.speechSynthesis.getVoices().length > 0) {
+                    performSpeak();
+                } else {
+                    window.speechSynthesis.onvoiceschanged = performSpeak;
+                }
             }
+
 
             // --- Progress & SRS Logic ---
             function loadProgress() {
