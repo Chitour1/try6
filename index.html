@@ -659,14 +659,15 @@
             const speedValue = document.getElementById('speed-value');
             
             // --- State ---
-            let LESSON_LIBRARY = {}; // Will be populated dynamically
+            let FULL_LESSON_LIBRARY = {}; // For review center
+            let LESSON_LIBRARY = {}; // For currently active subgroup
             let progress = {};
             let settings = { speechRate: 0.6 };
             let practiceList = [];
             let currentPracticeItem = null;
             let currentLevelKey = null;
             let currentLessonKey = null;
-            let lastPracticedLessonKey = null;
+            let isGlobalSession = false;
             let previousScreen = 'start';
             let countdownInterval = null;
             let voices = [];
@@ -721,9 +722,9 @@
                 localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progress));
             }
             
-            function initializeLessonProgress(lessonKey) {
+            function initializeLessonProgress(lessonKey, library) {
                 if (!progress[lessonKey]) {
-                    const lessonSentences = getLessonSentences(lessonKey);
+                    const lessonSentences = getLessonSentences(lessonKey, library);
                     if (!lessonSentences) return; // Safety check
                     progress[lessonKey] = {
                         stage: 0,
@@ -737,8 +738,8 @@
                 }
             }
 
-            function getLessonSentences(lessonKey) {
-                for (const level of Object.values(LESSON_LIBRARY)) {
+            function getLessonSentences(lessonKey, library = LESSON_LIBRARY) {
+                for (const level of Object.values(library)) {
                     if (level[lessonKey]) {
                         return level[lessonKey].sentences;
                     }
@@ -797,8 +798,8 @@
                     const content = module[exportedKeys[0]]; // Get the first export
 
                     // Check if the loaded content is another index or the final lesson library
-                    if (exportedKeys[0].includes('_SUB_GROUPS')) {
-                        populateLevelSubgroupScreen(content);
+                    if (exportedKeys[0].includes('SUB_GROUPS')) {
+                        populateLevelSubgroupScreen(content, group.groupName);
                         showScreen('levelSubgroup', 'levelGroup');
                     } else {
                         LESSON_LIBRARY = content;
@@ -825,7 +826,7 @@
                     </div>
                     ${sentence.tip_ar ? `
                     <div class="sc-tip">
-                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
+                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
                         <span>${sentence.tip_ar}</span>
                     </div>
                     ` : ''}
@@ -842,7 +843,7 @@
             function populateLessonScreen(levelKey, lessonKey) {
                 currentLevelKey = levelKey;
                 currentLessonKey = lessonKey;
-                initializeLessonProgress(lessonKey);
+                initializeLessonProgress(lessonKey, LESSON_LIBRARY);
 
                 const lessonData = LESSON_LIBRARY[levelKey][lessonKey];
                 const lessonProgress = progress[lessonKey];
@@ -853,62 +854,187 @@
                 const listContainer = document.getElementById('lesson-sentence-list');
                 listContainer.innerHTML = '';
                 
-                let incompleteSentences = 0;
+                let incompleteReps = 0;
                 sentences.forEach(sentence => {
                     const repsDone = lessonProgress.sentenceProgress[sentence.id] || 0;
                     if (repsDone < repsNeeded) {
-                        incompleteSentences++;
+                        incompleteReps += (repsNeeded - repsDone);
                     }
                     const card = createSentenceCard(sentence, repsDone, repsNeeded);
                     listContainer.appendChild(card);
                 });
 
                 const practiceBtn = document.getElementById('start-lesson-practice-btn');
-                const isLessonComplete = incompleteSentences === 0;
+                const isLessonComplete = incompleteReps === 0;
 
                 if (isLessonComplete) {
-                    if (lessonProgress.stage === 0) {
-                         if (progress[lessonKey].lastCompletion === null) {
-                            progress[lessonKey].stage = 1;
-                            progress[lessonKey].lastCompletion = new Date().toISOString();
-                            saveProgress();
-                         }
-                         practiceBtn.textContent = 'الدرس مكتمل! اذهب للمراجعة';
-                    } else {
-                         practiceBtn.textContent = 'تمت المراجعة!';
-                    }
+                    practiceBtn.textContent = 'الدرس مكتمل!';
                     practiceBtn.disabled = true;
                 } else {
-                    practiceBtn.textContent = `ابدأ التمرين (${incompleteSentences} جمل متبقية)`;
+                    practiceBtn.textContent = `ابدأ التمرين (${incompleteReps} تكرار متبقي)`;
                     practiceBtn.disabled = false;
                 }
             }
 
-            function populateReviewCenter() {
-                // ... (code remains the same)
+            async function ensureFullLibraryLoaded() {
+                if (Object.keys(FULL_LESSON_LIBRARY).length > 0) {
+                    return; // Already loaded
+                }
+                
+                // Recursive function to traverse the library index
+                async function loadGroup(group) {
+                    try {
+                        const module = await import(group.filePath);
+                        const exportedKey = Object.keys(module)[0];
+                        const content = module[exportedKey];
+
+                        if (exportedKey.includes('SUB_GROUPS')) {
+                            for (const subGroup of content) {
+                                await loadGroup(subGroup);
+                            }
+                        } else {
+                            // This is a lesson library file
+                            Object.assign(FULL_LESSON_LIBRARY, content);
+                        }
+                    } catch (e) {
+                        console.error(`Failed to load library file: ${group.filePath}`, e);
+                    }
+                }
+
+                for (const group of LIBRARY_INDEX) {
+                    await loadGroup(group);
+                }
+            }
+
+            async function populateReviewCenter() {
+                await ensureFullLibraryLoaded();
+                const container = document.getElementById('review-list-container');
+                container.innerHTML = '';
+                const sections = {};
+                
+                let activeLessonsForReview = [];
+
+                Object.keys(progress).forEach(lessonKey => {
+                    if (!getLessonSentences(lessonKey, FULL_LESSON_LIBRARY)) {
+                        return;
+                    }
+
+                    const status = getLessonStatus(lessonKey);
+                    if (status.status === 'learning') return;
+
+                    const stage = status.stage;
+                    if (!sections[stage]) {
+                        sections[stage] = document.createElement('div');
+                        sections[stage].className = 'review-stage-section';
+                        sections[stage].innerHTML = `<div class="review-stage-title">${SRS_STAGES[stage].name}</div>`;
+                    }
+                    
+                    const lessonCard = createReviewLessonCard(lessonKey, status);
+                    sections[stage].appendChild(lessonCard);
+
+                    if(status.status === 'active') {
+                        activeLessonsForReview.push(lessonKey);
+                    }
+                });
+
+                Object.keys(sections).sort((a, b) => a - b).forEach(stageKey => container.appendChild(sections[stageKey]));
+                
+                const reviewBtn = document.getElementById('start-global-review-btn');
+                reviewBtn.disabled = activeLessonsForReview.length === 0;
+                reviewBtn.textContent = activeLessonsForReview.length > 0 ? `ابدأ المراجعة (${activeLessonsForReview.length} دروس)` : 'لا يوجد مراجعات متاحة';
+
+                if (document.querySelector('.review-lesson-countdown')) {
+                    countdownInterval = setInterval(updateAllCountdowns, 1000);
+                }
             }
 
             function createReviewLessonCard(lessonKey, status) {
-                // ... (code remains the same)
+                const card = document.createElement('div');
+                card.className = 'review-lesson-card';
+                card.dataset.lessonKey = lessonKey;
+                card.dataset.srsStage = status.stage;
+
+                const icon = status.status === 'locked' 
+                    ? `<svg class="review-lesson-status-icon" style="stroke: var(--locked-color);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>`
+                    : `<svg class="review-lesson-status-icon" style="stroke: var(--success-color);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>`;
+
+                card.innerHTML = `
+                    <div class="review-lesson-card-header">
+                        <div class="review-lesson-title">${lessonKey}</div>
+                        ${icon}
+                    </div>
+                    ${status.status === 'locked' ? `<div class="review-lesson-countdown" data-due="${status.dueTimestamp}"></div>` : ''}
+                    <div class="review-lesson-sentences"></div>
+                `;
+                
+                if (status.status === 'locked') {
+                    card.classList.add('locked');
+                } else {
+                     card.addEventListener('click', () => {
+                        const sentencesContainer = card.querySelector('.review-lesson-sentences');
+                        const isVisible = sentencesContainer.style.display === 'block';
+                        if (isVisible) {
+                            sentencesContainer.style.display = 'none';
+                        } else {
+                            if (sentencesContainer.innerHTML === '') {
+                                const sentences = getLessonSentences(lessonKey, FULL_LESSON_LIBRARY);
+                                if(sentences) {
+                                    sentences.forEach(s => {
+                                        const sCard = createSentenceCard(s, '✓', '✓');
+                                        sentencesContainer.appendChild(sCard);
+                                    });
+                                }
+                            }
+                            sentencesContainer.style.display = 'block';
+                        }
+                    });
+                }
+                return card;
             }
 
             function updateAllCountdowns() {
-                // ... (code remains the same)
+                document.querySelectorAll('.review-lesson-countdown').forEach(el => {
+                    const due = parseInt(el.dataset.due, 10);
+                    const now = new Date().getTime();
+                    const diff = due - now;
+
+                    if (diff <= 0) {
+                        el.textContent = 'جاهز للمراجعة!';
+                        if(!el.closest('.review-lesson-card').classList.contains('refreshed')) {
+                            el.closest('.review-lesson-card').classList.add('refreshed');
+                            populateReviewCenter();
+                        }
+                        return;
+                    }
+
+                    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+                    el.textContent = `يفتح بعد: ${d > 0 ? `${d}ي ` : ''}${h}س ${m}د ${s}ث`;
+                });
             }
 
             // --- Practice Flow ---
             function startPracticeSession(isGlobal = false) {
+                isGlobalSession = isGlobal;
                 practiceList = [];
                 let lessonsToPractice = isGlobal 
                     ? Object.keys(progress).filter(lk => getLessonStatus(lk).status === 'active')
                     : [currentLessonKey];
                 
-                lastPracticedLessonKey = lessonsToPractice.length > 0 ? lessonsToPractice[0] : null;
+                if (lessonsToPractice.length === 0) return;
+
+                const libraryToUse = isGlobal ? FULL_LESSON_LIBRARY : LESSON_LIBRARY;
 
                 lessonsToPractice.forEach(lessonKey => {
                     const lessonProgress = progress[lessonKey];
+                    if (!lessonProgress) return;
+                    
                     const repsNeeded = SRS_STAGES[lessonProgress.stage].reps;
-                    const sentences = getLessonSentences(lessonKey);
+                    const sentences = getLessonSentences(lessonKey, libraryToUse);
+                    if (!sentences) return;
 
                     sentences.forEach(sentence => {
                         const repsDone = lessonProgress.sentenceProgress[sentence.id] || 0;
@@ -932,7 +1058,11 @@
             function displayNextPracticeItem() {
                 currentPracticeItem++;
                 if (currentPracticeItem >= practiceList.length) {
-                    setupWritingExercise();
+                    if (!isGlobalSession) {
+                        setupWritingExercise();
+                    } else {
+                        showScreen('sessionComplete', 'practice');
+                    }
                     return;
                 }
                 
@@ -948,7 +1078,7 @@
                 if (sentence.tip_ar) {
                     tipContainer.innerHTML = `
                         <div class="sc-tip">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
+                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
                             <span>${sentence.tip_ar}</span>
                         </div>`;
                     tipContainer.style.display = 'block';
@@ -974,7 +1104,15 @@
                 
                 progress[lessonKey].sentenceProgress[sentence.id]++;
                 
-                const lessonSentences = getLessonSentences(lessonKey);
+                const libraryToUse = isGlobalSession ? FULL_LESSON_LIBRARY : LESSON_LIBRARY;
+                const lessonSentences = getLessonSentences(lessonKey, libraryToUse);
+
+                if (!lessonSentences) {
+                    console.error("Could not find sentences during practice click.");
+                    displayNextPracticeItem();
+                    return;
+                }
+
                 const lessonStage = progress[lessonKey].stage;
                 const repsNeeded = SRS_STAGES[lessonStage].reps;
                 const isLessonComplete = lessonSentences.every(s => (progress[lessonKey].sentenceProgress[s.id] || 0) >= repsNeeded);
@@ -982,6 +1120,7 @@
                 if (isLessonComplete) {
                     progress[lessonKey].stage++;
                     progress[lessonKey].lastCompletion = new Date().toISOString();
+                    // Reset sentence progress for the new stage
                     lessonSentences.forEach(s => {
                         progress[lessonKey].sentenceProgress[s.id] = 0;
                     });
@@ -992,7 +1131,13 @@
             }
             
             function setupWritingExercise() {
-                // ... (code remains the same)
+                const input = document.getElementById('writing-exercise-input');
+                const feedback = document.getElementById('writing-exercise-feedback');
+                input.value = '';
+                feedback.textContent = '';
+                input.disabled = false;
+                document.getElementById('writing-exercise-check-btn').disabled = false;
+                showScreen('writingExercise', 'practice');
             }
 
             function populateLevelGroupScreen() {
@@ -1007,9 +1152,10 @@
                 });
             }
             
-            function populateLevelSubgroupScreen(subgroups) {
+            function populateLevelSubgroupScreen(subgroups, parentGroupName) {
                 const list = document.getElementById('level-subgroup-list');
                 list.innerHTML = '';
+                document.querySelector('#level-subgroup-screen .screen-title').textContent = parentGroupName;
                 subgroups.forEach(group => {
                     const card = document.createElement('div');
                     card.className = 'level-subgroup-card';
@@ -1034,13 +1180,15 @@
                     let lessonsMastered = 0;
 
                     lessonKeysInLevel.forEach(lessonKey => {
-                        initializeLessonProgress(lessonKey);
+                        initializeLessonProgress(lessonKey, LESSON_LIBRARY);
                         const lessonProgress = progress[lessonKey];
-                        if (lessonProgress.stage > 0) {
-                            lessonsInitiallyCompleted++;
-                        }
-                        if (lessonProgress.stage >= SRS_STAGES.length - 1) {
-                            lessonsMastered++;
+                        if (lessonProgress) { // FIX: Check if progress exists
+                            if (lessonProgress.stage > 0) {
+                                lessonsInitiallyCompleted++;
+                            }
+                            if (lessonProgress.stage >= SRS_STAGES.length - 1) {
+                                lessonsMastered++;
+                            }
                         }
                     });
 
@@ -1070,28 +1218,28 @@
                  const lessonList = document.getElementById('lesson-list');
                  lessonList.innerHTML = '';
                  Object.keys(LESSON_LIBRARY[levelKey]).forEach(lessonKey => {
-                    initializeLessonProgress(lessonKey);
+                    initializeLessonProgress(lessonKey, LESSON_LIBRARY);
                     
                     const lessonProgress = progress[lessonKey];
                     const lessonSentences = getLessonSentences(lessonKey);
                     
-                    if (lessonProgress.stage >= SRS_STAGES.length) {
-                        lessonProgress.stage = SRS_STAGES.length - 1;
-                    }
-                    const repsNeededForStage = SRS_STAGES[lessonProgress.stage].reps;
-                    
-                    let totalRepsDone = 0;
-                    lessonSentences.forEach(s => {
-                        totalRepsDone += (progress[lessonKey].sentenceProgress[s.id] || 0);
-                    });
-                    
-                    const totalRepsNeeded = lessonSentences.length * repsNeededForStage;
-                    
+                    if (!lessonProgress || !lessonSentences) return;
+
+                    const status = getLessonStatus(lessonKey);
                     let percentage = 0;
-                    if (totalRepsNeeded === 0) {
+
+                    if (status.status === 'mastered' || (lessonProgress.stage > 0 && status.status === 'locked')) {
                         percentage = 100;
-                    } else {
-                        percentage = (totalRepsDone / totalRepsNeeded) * 100;
+                    } else if (lessonProgress.stage === 0) {
+                        const repsNeededForStage = SRS_STAGES[lessonProgress.stage].reps;
+                        let totalRepsDone = 0;
+                        lessonSentences.forEach(s => {
+                            totalRepsDone += (progress[lessonKey].sentenceProgress[s.id] || 0);
+                        });
+                        const totalRepsNeeded = lessonSentences.length * repsNeededForStage;
+                        if (totalRepsNeeded > 0) {
+                            percentage = (totalRepsDone / totalRepsNeeded) * 100;
+                        }
                     }
 
                     const lCard = document.createElement('div');
@@ -1154,7 +1302,19 @@
             });
             
             document.getElementById('writing-exercise-check-btn').addEventListener('click', () => {
-                // ... (code remains the same)
+                const input = document.getElementById('writing-exercise-input');
+                const feedback = document.getElementById('writing-exercise-feedback');
+                const userAnswer = input.value.trim().toLowerCase();
+                if (userAnswer === currentLessonKey.toLowerCase()) {
+                    feedback.textContent = 'صحيح! أحسنت.';
+                    feedback.className = 'feedback-correct';
+                    input.disabled = true;
+                    document.getElementById('writing-exercise-check-btn').disabled = true;
+                    setTimeout(() => showScreen('sessionComplete', 'writingExercise'), 1500);
+                } else {
+                    feedback.textContent = `حاول مرة أخرى. الإجابة الصحيحة هي: ${currentLessonKey}`;
+                    feedback.className = 'feedback-incorrect';
+                }
             });
 
             document.getElementById('writing-exercise-skip-btn').addEventListener('click', () => {
